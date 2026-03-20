@@ -85,6 +85,12 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
         if (post) {
           preloadHints += getPostMediaHint(post);
           inlineData = `<script>window.__INITIAL_POST__=${JSON.stringify(post)};</script>`;
+          // Add hero image for posts with images (LCP optimization)
+          const postImages = (post as any).images;
+          if (postImages && postImages.length > 0) {
+            const imgId = postImages[0].id;
+            heroImage = `<img id="lcp-hero" src="/images/${imgId}.jpg" alt="" fetchpriority="high" loading="eager" decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;object-fit:cover;z-index:-1;pointer-events:none">`;
+          }
         }
       }
     } else if (reqPath.startsWith("/users/")) {
