@@ -181,7 +181,7 @@ export const AppContainer = () => {
         newPostModalId={newPostModalId}
         onLogout={handleLogout}
       >
-        <Suspense fallback={<RouteLoadingFallback />}>
+        <Suspense fallback={<RouteLoadingFallback />} key={pathname}>
           <Routes>
             <Route element={<TimelineContainer />} path="/" />
             <Route

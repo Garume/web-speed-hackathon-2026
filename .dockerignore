@@ -1,6 +1,15 @@
 node_modules
+**/node_modules
+**/.cache
 .git
 *.log
+.tmp-*
+webpack-stats.json
+application/client/webpack-stats.json
+
+docs
+scoring-tool
+scripts
 
 application/server/seeds
 application/server/upload

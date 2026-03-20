@@ -1,0 +1,29 @@
+app = "your-app-name"
+primary_region = "nrt"
+
+[build]
+dockerfile = "Dockerfile"
+[build.args]
+NODE_VERSION = "24.14.0"
+
+[env]
+PORT = "8080"
+NODE_ENV = "production"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = "off"
+processes = ["app"]
+
+[[http_service.checks]]
+interval = "10s"
+timeout = "100s"
+grace_period = "10s"
+method = "GET"
+path = "/"
+
+[[vm]]
+cpu_kind = "shared"
+cpus = 1
+memory_mb = 2048

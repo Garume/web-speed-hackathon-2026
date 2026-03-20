@@ -220,3 +220,6 @@ $RECYCLE.BIN/
 application/upload/**
 !application/upload/**/
 !application/upload/**/.gitkeep
+
+# Personal Fly.io config for self-managed deployments
+fly.self.toml
