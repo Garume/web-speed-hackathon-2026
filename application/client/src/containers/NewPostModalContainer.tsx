@@ -5,20 +5,54 @@ import { Modal } from "@web-speed-hackathon-2026/client/src/components/modal/Mod
 import { NewPostModalPage } from "@web-speed-hackathon-2026/client/src/components/new_post_modal/NewPostModalPage";
 import { sendFile, sendJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 
+interface PreparedImage {
+  alt: string;
+  file: File;
+}
+
+interface PreparedSound {
+  artist: string;
+  file: File;
+  title: string;
+}
+
 interface SubmitParams {
-  images: File[];
+  images: PreparedImage[];
   movie: File | undefined;
-  sound: File | undefined;
+  sound: PreparedSound | undefined;
   text: string;
+}
+
+async function uploadSound(sound: PreparedSound): Promise<Models.Sound> {
+  const response = await fetch("/api/v1/sounds", {
+    body: sound.file,
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "X-Sound-Artist": encodeURIComponent(sound.artist),
+      "X-Sound-Title": encodeURIComponent(sound.title),
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error((await response.text()) || `Request failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as Models.Sound;
 }
 
 async function sendNewPost({ images, movie, sound, text }: SubmitParams): Promise<Models.Post> {
   const payload = {
     images: images
-      ? await Promise.all(images.map((image) => sendFile("/api/v1/images", image)))
+      ? await Promise.all(
+          images.map(async ({ alt, file }) => ({
+            ...(await sendFile<{ id: string }>("/api/v1/images", file)),
+            alt,
+          })),
+        )
       : [],
     movie: movie ? await sendFile("/api/v1/movies", movie) : undefined,
-    sound: sound ? await sendFile("/api/v1/sounds", sound) : undefined,
+    sound: sound ? await uploadSound(sound) : undefined,
     text,
   };
 
@@ -39,13 +73,13 @@ export const NewPostModalContainer = ({ id }: Props) => {
       return;
     }
 
-    const handleToggle = () => {
-      // モーダル開閉時にkeyを更新することでフォームの状態をリセットする
+    const handleClose = () => {
+      // 閉じるたびにkeyを更新して次回表示時のフォーム状態をリセットする
       setResetKey((key) => key + 1);
     };
-    element.addEventListener("toggle", handleToggle);
+    element.addEventListener("close", handleClose);
     return () => {
-      element.removeEventListener("toggle", handleToggle);
+      element.removeEventListener("close", handleClose);
     };
   }, []);
 

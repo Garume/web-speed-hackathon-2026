@@ -11,25 +11,74 @@ import {
 
 export const directMessageRouter = Router();
 
+function getOwnedConversationWhere(conversationId: string, userId: string) {
+  return {
+    id: conversationId,
+    [Op.or]: [{ initiatorId: userId }, { memberId: userId }],
+  };
+}
+
 directMessageRouter.get("/dm", async (req, res) => {
   if (req.session.userId === undefined) {
     throw new httpErrors.Unauthorized();
   }
 
-  const conversations = await DirectMessageConversation.findAll({
+  const conversations = await DirectMessageConversation.unscoped().findAll({
+    attributes: ["id", "initiatorId", "memberId"],
     where: {
-      [Op.and]: [
-        { [Op.or]: [{ initiatorId: req.session.userId }, { memberId: req.session.userId }] },
-        where(col("messages.id"), { [Op.not]: null }),
-      ],
+      [Op.or]: [{ initiatorId: req.session.userId }, { memberId: req.session.userId }],
     },
-    order: [[col("messages.createdAt"), "DESC"]],
+    include: [
+      {
+        association: "initiator",
+        attributes: ["id", "name", "username"],
+        include: [{ association: "profileImage", attributes: ["id", "alt"] }],
+      },
+      {
+        association: "member",
+        attributes: ["id", "name", "username"],
+        include: [{ association: "profileImage", attributes: ["id", "alt"] }],
+      },
+    ],
   });
 
-  const sorted = conversations.map((c) => ({
-    ...c.toJSON(),
-    messages: c.messages?.reverse(),
-  }));
+  const summaries = await Promise.all(
+    conversations.map(async (conversation) => {
+      const [latestMessage, unreadCount] = await Promise.all([
+        DirectMessage.unscoped().findOne({
+          attributes: ["id", "body", "isRead", "createdAt", "updatedAt"],
+          where: {
+            conversationId: conversation.id,
+          },
+          include: [{ association: "sender", attributes: ["id"] }],
+          order: [["createdAt", "DESC"]],
+        }),
+        DirectMessage.count({
+          where: {
+            conversationId: conversation.id,
+            senderId: {
+              [Op.ne]: req.session.userId,
+            },
+            isRead: false,
+          },
+        }),
+      ]);
+
+      return {
+        ...conversation.toJSON(),
+        hasUnread: unreadCount > 0,
+        messages: latestMessage == null ? [] : [latestMessage.toJSON()],
+      };
+    }),
+  );
+
+  const sorted = summaries
+    .filter((conversation) => conversation.messages.length > 0)
+    .sort(
+      (left, right) =>
+        new Date(right.messages[0]!.createdAt).getTime() -
+        new Date(left.messages[0]!.createdAt).getTime(),
+    );
 
   return res.status(200).type("application/json").send(sorted);
 });
@@ -39,26 +88,27 @@ directMessageRouter.post("/dm", async (req, res) => {
     throw new httpErrors.Unauthorized();
   }
 
-  const peer = await User.findByPk(req.body?.peerId);
+  const peerUsername =
+    typeof req.body?.peerUsername === "string" ? req.body.peerUsername.trim().replace(/^@/, "") : "";
+  const peerId = typeof req.body?.peerId === "string" ? req.body.peerId : "";
+  const peer =
+    peerUsername.length > 0
+      ? await User.findOne({
+          where: {
+            username: peerUsername,
+          },
+        })
+      : await User.findByPk(peerId);
   if (peer === null) {
     throw new httpErrors.NotFound();
   }
 
-  const [conversation] = await DirectMessageConversation.findOrCreate({
-    where: {
-      [Op.or]: [
-        { initiatorId: req.session.userId, memberId: peer.id },
-        { initiatorId: peer.id, memberId: req.session.userId },
-      ],
-    },
-    defaults: {
-      initiatorId: req.session.userId,
-      memberId: peer.id,
-    },
+  const conversation = await DirectMessageConversation.unscoped().create({
+    initiatorId: req.session.userId,
+    memberId: peer.id,
   });
-  await conversation.reload();
 
-  return res.status(200).type("application/json").send(conversation);
+  return res.status(200).type("application/json").send({ id: conversation.id });
 });
 
 directMessageRouter.ws("/dm/unread", async (req, _res) => {
@@ -100,11 +150,30 @@ directMessageRouter.get("/dm/:conversationId", async (req, res) => {
     throw new httpErrors.Unauthorized();
   }
 
-  const conversation = await DirectMessageConversation.findOne({
-    where: {
-      id: req.params.conversationId,
-      [Op.or]: [{ initiatorId: req.session.userId }, { memberId: req.session.userId }],
-    },
+  const conversation = await DirectMessageConversation.unscoped().findOne({
+    attributes: ["id", "initiatorId", "memberId"],
+    where: getOwnedConversationWhere(req.params.conversationId, req.session.userId),
+    include: [
+      {
+        association: "initiator",
+        attributes: ["id", "name", "username"],
+        include: [{ association: "profileImage", attributes: ["id", "alt"] }],
+      },
+      {
+        association: "member",
+        attributes: ["id", "name", "username"],
+        include: [{ association: "profileImage", attributes: ["id", "alt"] }],
+      },
+      {
+        association: "messages",
+        attributes: ["id", "body", "isRead", "createdAt", "updatedAt"],
+        include: [{ association: "sender", attributes: ["id"] }],
+        limit: 30,
+        order: [["createdAt", "ASC"]],
+        required: false,
+        separate: true,
+      },
+    ],
   });
   if (conversation === null) {
     throw new httpErrors.NotFound();
@@ -118,11 +187,9 @@ directMessageRouter.ws("/dm/:conversationId", async (req, _res) => {
     throw new httpErrors.Unauthorized();
   }
 
-  const conversation = await DirectMessageConversation.findOne({
-    where: {
-      id: req.params.conversationId,
-      [Op.or]: [{ initiatorId: req.session.userId }, { memberId: req.session.userId }],
-    },
+  const conversation = await DirectMessageConversation.unscoped().findOne({
+    attributes: ["id", "initiatorId", "memberId"],
+    where: getOwnedConversationWhere(req.params.conversationId, req.session.userId),
   });
   if (conversation == null) {
     throw new httpErrors.NotFound();
@@ -160,11 +227,9 @@ directMessageRouter.post("/dm/:conversationId/messages", async (req, res) => {
     throw new httpErrors.BadRequest();
   }
 
-  const conversation = await DirectMessageConversation.findOne({
-    where: {
-      id: req.params.conversationId,
-      [Op.or]: [{ initiatorId: req.session.userId }, { memberId: req.session.userId }],
-    },
+  const conversation = await DirectMessageConversation.unscoped().findOne({
+    attributes: ["id"],
+    where: getOwnedConversationWhere(req.params.conversationId, req.session.userId),
   });
   if (conversation === null) {
     throw new httpErrors.NotFound();
@@ -185,11 +250,9 @@ directMessageRouter.post("/dm/:conversationId/read", async (req, res) => {
     throw new httpErrors.Unauthorized();
   }
 
-  const conversation = await DirectMessageConversation.findOne({
-    where: {
-      id: req.params.conversationId,
-      [Op.or]: [{ initiatorId: req.session.userId }, { memberId: req.session.userId }],
-    },
+  const conversation = await DirectMessageConversation.unscoped().findOne({
+    attributes: ["id", "initiatorId", "memberId"],
+    where: getOwnedConversationWhere(req.params.conversationId, req.session.userId),
   });
   if (conversation === null) {
     throw new httpErrors.NotFound();
@@ -216,7 +279,9 @@ directMessageRouter.post("/dm/:conversationId/typing", async (req, res) => {
     throw new httpErrors.Unauthorized();
   }
 
-  const conversation = await DirectMessageConversation.findByPk(req.params.conversationId);
+  const conversation = await DirectMessageConversation.unscoped().findByPk(req.params.conversationId, {
+    attributes: ["id"],
+  });
   if (conversation === null) {
     throw new httpErrors.NotFound();
   }

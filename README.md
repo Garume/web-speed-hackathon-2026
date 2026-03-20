@@ -39,6 +39,22 @@ https://github.com/CyberAgentHack/web-speed-hackathon-2026/issues/new?template=a
 
 ローカルで計測する方法は [./scoring-tool/README.md](./scoring-tool/README.md) を参照してください。
 
+依存インストール後に build・起動・採点をまとめて実行したい場合は、次のヘルパースクリプトも利用できます。
+
+```bash
+node ./scripts/score-local.mjs
+```
+
+特定の計測だけを回したい場合は、そのまま scoring-tool の引数を渡せます。
+
+```bash
+node ./scripts/score-local.mjs --targetName "ホーム"
+```
+
+すでにビルド済みであれば、`--skipBuild` を付けてビルドを省略できます。
+
+`localhost` が別プロセスに解決される環境向けに、ヘルパースクリプトはデフォルトで `http://127.0.0.1:3000` を使います。
+
 ## ライセンス
 
 - Code

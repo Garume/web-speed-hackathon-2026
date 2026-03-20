@@ -8,12 +8,13 @@ export const validate = (values: AuthFormData): FormErrors<AuthFormData> => {
   const normalizedName = values.name?.trim() || "";
   const normalizedPassword = values.password?.trim() || "";
   const normalizedUsername = values.username?.trim() || "";
+  const hasPasswordSymbol = /[^\p{Letter}\p{Number}]/u.test(normalizedPassword);
 
   if (values.type === "signup" && normalizedName.length === 0) {
     errors.name = "名前を入力してください";
   }
 
-  if (/^(?:[^\P{Letter}&&\P{Number}]*){16,}$/v.test(normalizedPassword)) {
+  if (normalizedPassword.length > 0 && !hasPasswordSymbol) {
     errors.password = "パスワードには記号を含める必要があります";
   }
   if (normalizedPassword.length === 0) {

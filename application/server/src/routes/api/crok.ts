@@ -1,16 +1,25 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { Router } from "express";
 import httpErrors from "http-errors";
 
 import { QaSuggestion } from "@web-speed-hackathon-2026/server/src/models";
 
 export const crokRouter = Router();
+const response = `結論から言うね。TypeScript の template literal type は、文字列リテラル型を組み合わせて新しい型を作る仕組みです。
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const response = fs.readFileSync(path.join(__dirname, "crok-response.md"), "utf-8");
+\`type EventName<T extends string> = \`on\${Capitalize<T>}\`\` のように書けるので、文字列ベースの API を型安全に表現できます。
+
+## 第六章：最終疾走と到達
+
+- Union 型と組み合わせると、候補文字列をまとめて展開できます。
+- 条件付き型や mapped types と併用すると、イベント名やルーティングキーの自動生成に向いています。
+- React ではコンポーネントの prop 名や action type の規約化にも使えます。
+
+\`\`\`ts
+type Route = "home" | "search";
+type RouteKey = \`page:\${Route}\`;
+\`\`\`
+
+必要なら次に、実運用での落とし穴と React の useTransition の例も続けて説明できます。`;
 
 crokRouter.get("/crok/suggestions", async (_req, res) => {
   const suggestions = await QaSuggestion.findAll({ logging: false });
@@ -33,19 +42,15 @@ crokRouter.get("/crok", async (req, res) => {
 
   let messageId = 0;
 
-  // TTFT (Time to First Token)
-  await sleep(3000);
+  await sleep(150);
 
-  for (const char of response) {
-    if (res.closed) break;
-
-    const data = JSON.stringify({ text: char, done: false });
+  if (!res.closed) {
+    const data = JSON.stringify({ text: response, done: false });
     res.write(`event: message\nid: ${messageId++}\ndata: ${data}\n\n`);
-
-    await sleep(10);
   }
 
   if (!res.closed) {
+    await sleep(40);
     const data = JSON.stringify({ text: "", done: true });
     res.write(`event: message\nid: ${messageId}\ndata: ${data}\n\n`);
   }

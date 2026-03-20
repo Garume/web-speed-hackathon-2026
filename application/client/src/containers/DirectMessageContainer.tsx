@@ -20,10 +20,59 @@ interface DmTypingEvent {
 
 const TYPING_INDICATOR_DURATION_MS = 10 * 1000;
 
+function mergeConversationMessage(
+  conversation: Models.DirectMessageConversation | null,
+  message: Models.DirectMessage,
+): Models.DirectMessageConversation | null {
+  if (conversation == null) {
+    return conversation;
+  }
+
+  const existingIndex = conversation.messages.findIndex(({ id }) => id === message.id);
+  const nextMessages =
+    existingIndex === -1
+      ? [...conversation.messages, message]
+      : conversation.messages.map((currentMessage, index) =>
+          index === existingIndex ? message : currentMessage,
+        );
+
+  nextMessages.sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+  );
+
+  return {
+    ...conversation,
+    messages: nextMessages,
+  };
+}
+
 interface Props {
   activeUser: Models.User | null;
   authModalId: string;
 }
+
+const DirectMessagePageSkeleton = () => {
+  return (
+    <div aria-hidden="true" className="bg-cax-surface flex min-h-[calc(100vh-(--spacing(12)))] flex-col lg:min-h-screen">
+      <div className="border-cax-border flex items-center gap-3 border-b px-4 py-3">
+        <div className="bg-cax-surface-subtle h-12 w-12 rounded-full" />
+        <div className="space-y-2">
+          <div className="bg-cax-surface-subtle h-5 w-32 rounded-full" />
+          <div className="bg-cax-surface-subtle h-4 w-24 rounded-full" />
+        </div>
+      </div>
+      <div className="bg-cax-surface-subtle flex-1 space-y-4 px-4 py-4">
+        <div className="bg-cax-surface h-16 w-3/4 rounded-3xl" />
+        <div className="bg-cax-brand-soft ml-auto h-16 w-1/2 rounded-3xl" />
+        <div className="bg-cax-surface h-20 w-2/3 rounded-3xl" />
+      </div>
+      <div className="border-cax-border bg-cax-surface flex items-end gap-2 border-t p-4">
+        <div className="bg-cax-surface-subtle h-12 flex-1 rounded-2xl" />
+        <div className="bg-cax-brand h-10 w-20 rounded-full" />
+      </div>
+    </div>
+  );
+};
 
 export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
   const { conversationId = "" } = useParams<{ conversationId: string }>();
@@ -34,6 +83,7 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
 
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const peerTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSentAtRef = useRef(0);
 
   const loadConversation = useCallback(async () => {
     if (activeUser == null) {
@@ -58,40 +108,67 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
 
   useEffect(() => {
     void loadConversation();
+  }, [loadConversation]);
+
+  useEffect(() => {
+    if (activeUser == null || conversation == null) {
+      return;
+    }
+
+    const hasUnreadMessages = conversation.messages.some(
+      (message) => message.sender.id !== activeUser.id && !message.isRead,
+    );
+
+    if (!hasUnreadMessages) {
+      return;
+    }
+
     void sendRead();
-  }, [loadConversation, sendRead]);
+  }, [activeUser, conversation, sendRead]);
 
   const handleSubmit = useCallback(
     async (params: DirectMessageFormData) => {
       setIsSubmitting(true);
       try {
-        await sendJSON(`/api/v1/dm/${conversationId}/messages`, {
-          body: params.body,
-        });
-        loadConversation();
+        const message = await sendJSON<Models.DirectMessage>(
+          `/api/v1/dm/${conversationId}/messages`,
+          {
+            body: params.body,
+          },
+        );
+        setConversation((currentConversation) =>
+          mergeConversationMessage(currentConversation, message),
+        );
       } finally {
         setIsSubmitting(false);
       }
     },
-    [conversationId, loadConversation],
+    [conversationId],
   );
 
   const handleTyping = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastTypingSentAtRef.current < 1500) {
+      return;
+    }
+
+    lastTypingSentAtRef.current = now;
     void sendJSON(`/api/v1/dm/${conversationId}/typing`, {});
   }, [conversationId]);
 
   useWs(`/api/v1/dm/${conversationId}`, (event: DmUpdateEvent | DmTypingEvent) => {
     if (event.type === "dm:conversation:message") {
-      void loadConversation().then(() => {
-        if (event.payload.sender.id !== activeUser?.id) {
-          setIsPeerTyping(false);
-          if (peerTypingTimeoutRef.current !== null) {
-            clearTimeout(peerTypingTimeoutRef.current);
-          }
-          peerTypingTimeoutRef.current = null;
+      setConversation((currentConversation) =>
+        mergeConversationMessage(currentConversation, event.payload),
+      );
+      if (event.payload.sender.id !== activeUser?.id) {
+        setIsPeerTyping(false);
+        if (peerTypingTimeoutRef.current !== null) {
+          clearTimeout(peerTypingTimeoutRef.current);
         }
-      });
-      void sendRead();
+        peerTypingTimeoutRef.current = null;
+        void sendRead();
+      }
     } else if (event.type === "dm:conversation:typing") {
       setIsPeerTyping(true);
       if (peerTypingTimeoutRef.current !== null) {
@@ -116,7 +193,14 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
     if (conversationError != null) {
       return <NotFoundContainer />;
     }
-    return null;
+    return (
+      <>
+        <Helmet>
+          <title>読込中 - CaX</title>
+        </Helmet>
+        <DirectMessagePageSkeleton />
+      </>
+    );
   }
 
   const peer =

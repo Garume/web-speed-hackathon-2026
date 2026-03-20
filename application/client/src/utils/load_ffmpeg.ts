@@ -1,15 +1,15 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
+export async function loadFFmpeg() {
+  const [{ FFmpeg }, { default: coreBinary }, { default: wasmBinary }] = await Promise.all([
+    import("@ffmpeg/ffmpeg"),
+    import("@ffmpeg/core?binary"),
+    import("@ffmpeg/core/wasm?binary"),
+  ]);
 
-export async function loadFFmpeg(): Promise<FFmpeg> {
   const ffmpeg = new FFmpeg();
 
   await ffmpeg.load({
-    coreURL: await import("@ffmpeg/core?binary").then(({ default: b }) => {
-      return URL.createObjectURL(new Blob([b], { type: "text/javascript" }));
-    }),
-    wasmURL: await import("@ffmpeg/core/wasm?binary").then(({ default: b }) => {
-      return URL.createObjectURL(new Blob([b], { type: "application/wasm" }));
-    }),
+    coreURL: URL.createObjectURL(new Blob([coreBinary], { type: "text/javascript" })),
+    wasmURL: URL.createObjectURL(new Blob([wasmBinary], { type: "application/wasm" })),
   });
 
   return ffmpeg;

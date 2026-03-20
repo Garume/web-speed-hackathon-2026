@@ -5,6 +5,7 @@ import { Button } from "@web-speed-hackathon-2026/client/src/components/foundati
 import { FontAwesomeIcon } from "@web-speed-hackathon-2026/client/src/components/foundation/FontAwesomeIcon";
 import { Link } from "@web-speed-hackathon-2026/client/src/components/foundation/Link";
 import { useWs } from "@web-speed-hackathon-2026/client/src/hooks/use_ws";
+import { showDialog } from "@web-speed-hackathon-2026/client/src/utils/dialog";
 import { fetchJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
@@ -41,26 +42,27 @@ export const DirectMessageListPage = ({ activeUser, newDmModalId }: Props) => {
     void loadConversations();
   });
 
-  if (conversations == null) {
-    return null;
-  }
-
   return (
     <section>
       <header className="border-cax-border flex flex-col gap-4 border-b px-4 pt-6 pb-4">
         <h1 className="text-2xl font-bold">ダイレクトメッセージ</h1>
         <div className="flex flex-wrap items-center gap-4">
           <Button
-            command="show-modal"
-            commandfor={newDmModalId}
             leftItem={<FontAwesomeIcon iconType="paper-plane" styleType="solid" />}
+            onClick={() => showDialog(newDmModalId)}
           >
             新しくDMを始める
           </Button>
         </div>
       </header>
 
-      {error != null ? (
+      {conversations == null ? (
+        <div aria-hidden="true" className="space-y-3 px-4 py-6">
+          <div className="bg-cax-surface-subtle h-16 rounded-2xl" />
+          <div className="bg-cax-surface-subtle h-16 rounded-2xl" />
+          <div className="bg-cax-surface-subtle h-16 rounded-2xl" />
+        </div>
+      ) : error != null ? (
         <p className="text-cax-danger px-4 py-6 text-center text-sm">DMの取得に失敗しました</p>
       ) : conversations.length === 0 ? (
         <p className="text-cax-text-muted px-4 py-6 text-center">
@@ -76,9 +78,9 @@ export const DirectMessageListPage = ({ activeUser, newDmModalId }: Props) => {
                 : conversation.member;
 
             const lastMessage = messages.at(-1);
-            const hasUnread = messages
-              .filter((m) => m.sender.id === peer.id)
-              .some((m) => !m.isRead);
+            const hasUnread =
+              conversation.hasUnread ??
+              messages.filter((m) => m.sender.id === peer.id).some((m) => !m.isRead);
 
             return (
               <li className="grid" key={conversation.id}>
@@ -87,6 +89,8 @@ export const DirectMessageListPage = ({ activeUser, newDmModalId }: Props) => {
                     <img
                       alt={peer.profileImage.alt}
                       className="w-12 shrink-0 self-start rounded-full"
+                      decoding="async"
+                      loading="lazy"
                       src={getProfileImagePath(peer.profileImage.id)}
                     />
                     <div className="flex flex-1 flex-col">

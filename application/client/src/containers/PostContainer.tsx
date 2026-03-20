@@ -8,6 +8,27 @@ import { useFetch } from "@web-speed-hackathon-2026/client/src/hooks/use_fetch";
 import { useInfiniteFetch } from "@web-speed-hackathon-2026/client/src/hooks/use_infinite_fetch";
 import { fetchJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 
+const PostPageSkeleton = () => {
+  return (
+    <div aria-hidden="true" className="px-1 sm:px-4">
+      <div className="border-cax-border border-b px-4 pt-4 pb-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-cax-surface-subtle h-14 w-14 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="bg-cax-surface-subtle h-5 w-40 rounded-full" />
+            <div className="bg-cax-surface-subtle h-4 w-28 rounded-full" />
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div className="bg-cax-surface-subtle h-5 w-full rounded-full" />
+          <div className="bg-cax-surface-subtle h-5 w-5/6 rounded-full" />
+          <div className="bg-cax-surface-subtle h-80 w-full rounded-2xl" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PostContainerContent = ({ postId }: { postId: string | undefined }) => {
   const { data: post, isLoading: isLoadingPost } = useFetch<Models.Post>(
     `/api/v1/posts/${postId}`,
@@ -21,9 +42,12 @@ const PostContainerContent = ({ postId }: { postId: string | undefined }) => {
 
   if (isLoadingPost) {
     return (
-      <Helmet>
-        <title>読込中 - CaX</title>
-      </Helmet>
+      <>
+        <Helmet>
+          <title>読込中 - CaX</title>
+        </Helmet>
+        <PostPageSkeleton />
+      </>
     );
   }
 

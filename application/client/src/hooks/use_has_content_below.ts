@@ -14,9 +14,9 @@ export function useHasContentBelow(
   const [hasContentBelow, setHasContentBelow] = useState(false);
 
   useEffect(() => {
-    let active = true;
+    let frameId = 0;
+
     const check = () => {
-      if (!active) return;
       const endEl = contentEndRef.current;
       const barEl = boundaryRef.current;
       if (endEl && barEl) {
@@ -24,11 +24,32 @@ export function useHasContentBelow(
         const barRect = barEl.getBoundingClientRect();
         setHasContentBelow(endRect.top > barRect.top);
       }
-      scheduler.postTask(check, { priority: "user-blocking", delay: 1 });
     };
-    scheduler.postTask(check, { priority: "user-blocking", delay: 1 });
+
+    const scheduleCheck = () => {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(check);
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleCheck);
+    const endEl = contentEndRef.current;
+    const barEl = boundaryRef.current;
+    if (endEl) {
+      resizeObserver.observe(endEl);
+    }
+    if (barEl) {
+      resizeObserver.observe(barEl);
+    }
+
+    scheduleCheck();
+    window.addEventListener("scroll", scheduleCheck, { passive: true });
+    window.addEventListener("resize", scheduleCheck, { passive: true });
+
     return () => {
-      active = false;
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("scroll", scheduleCheck);
+      window.removeEventListener("resize", scheduleCheck);
     };
   }, [contentEndRef, boundaryRef]);
 
