@@ -42,7 +42,6 @@ export const AuthModalContainer = ({ id, onUpdateActiveUser }: Props) => {
     const element = ref.current;
 
     const handleClose = () => {
-      // 閉じるたびにkeyを更新して次回表示時のフォーム状態をリセットする
       setResetKey((key) => key + 1);
     };
     element.addEventListener("close", handleClose);
@@ -66,9 +65,9 @@ export const AuthModalContainer = ({ id, onUpdateActiveUser }: Props) => {
           onUpdateActiveUser(user);
         }
         handleRequestCloseModal();
-        return null;
       } catch (err: unknown) {
-        return getErrorCode(err as JQuery.jqXHR<unknown>, values.type);
+        const error = getErrorCode(err as JQuery.jqXHR<unknown>, values.type);
+        throw new Error(error);
       }
     },
     [handleRequestCloseModal, onUpdateActiveUser],

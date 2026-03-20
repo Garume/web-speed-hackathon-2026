@@ -1,6 +1,6 @@
 import { Router } from "express";
 import httpErrors from "http-errors";
-import { Op } from "sequelize";
+import { col, fn, Op } from "sequelize";
 
 import { eventhub } from "@web-speed-hackathon-2026/server/src/eventhub";
 import {
@@ -10,12 +10,6 @@ import {
 } from "@web-speed-hackathon-2026/server/src/models";
 
 export const directMessageRouter = Router();
-const TYPING_INDICATOR_DURATION_MS = 10 * 1000;
-const typingByConversationAndUser = new Map<string, number>();
-
-function getTypingKey(conversationId: string, userId: string) {
-  return `${conversationId}:${userId}`;
-}
 
 function getOwnedConversationWhere(conversationId: string, userId: string) {
   return {
@@ -48,35 +42,49 @@ directMessageRouter.get("/dm", async (req, res) => {
     ],
   });
 
-  const summaries = await Promise.all(
-    conversations.map(async (conversation) => {
-      const [latestMessage, unreadCount] = await Promise.all([
-        DirectMessage.unscoped().findOne({
-          attributes: ["id", "body", "isRead", "createdAt", "updatedAt"],
-          where: {
-            conversationId: conversation.id,
-          },
-          include: [{ association: "sender", attributes: ["id"] }],
-          order: [["createdAt", "DESC"]],
-        }),
-        DirectMessage.count({
-          where: {
-            conversationId: conversation.id,
-            senderId: {
-              [Op.ne]: req.session.userId,
-            },
-            isRead: false,
-          },
-        }),
-      ]);
+  const conversationIds = conversations.map((c) => c.id);
 
-      return {
-        ...conversation.toJSON(),
-        hasUnread: unreadCount > 0,
-        messages: latestMessage == null ? [] : [latestMessage.toJSON()],
-      };
-    }),
+  // Batch query: fetch all messages for all conversations in one query (ordered DESC to pick latest)
+  const allMessages = await DirectMessage.unscoped().findAll({
+    attributes: ["id", "body", "isRead", "createdAt", "updatedAt", "conversationId"],
+    include: [{ association: "sender", attributes: ["id"] }],
+    where: { conversationId: { [Op.in]: conversationIds } },
+    order: [["createdAt", "DESC"]],
+  });
+
+  // Build latest-message map: first occurrence per conversationId (DESC order)
+  const latestMessageMap = new Map<string, Record<string, unknown> & { createdAt: Date | string }>();
+  for (const msg of allMessages) {
+    if (!latestMessageMap.has(msg.conversationId)) {
+      latestMessageMap.set(msg.conversationId, msg.toJSON() as Record<string, unknown> & { createdAt: Date | string });
+    }
+  }
+
+  // Batch query: get unread count per conversation in one GROUP BY query
+  const unreadRows = (await DirectMessage.unscoped().findAll({
+    attributes: ["conversationId", [fn("COUNT", col("id")), "unreadCount"]],
+    where: {
+      conversationId: { [Op.in]: conversationIds },
+      senderId: { [Op.ne]: req.session.userId },
+      isRead: false,
+    },
+    group: ["conversationId"],
+    raw: true,
+  })) as unknown as Array<{ conversationId: string; unreadCount: string }>;
+
+  const unreadCountMap = new Map<string, number>(
+    unreadRows.map((row) => [row.conversationId, Number(row.unreadCount)]),
   );
+
+  const summaries = conversations.map((conversation) => {
+    const latestMessage = latestMessageMap.get(conversation.id);
+    const unreadCount = unreadCountMap.get(conversation.id) ?? 0;
+    return {
+      ...conversation.toJSON(),
+      hasUnread: unreadCount > 0,
+      messages: latestMessage == null ? [] : [latestMessage],
+    };
+  });
 
   const sorted = summaries
     .filter((conversation) => conversation.messages.length > 0)
@@ -221,17 +229,6 @@ directMessageRouter.ws("/dm/:conversationId", async (req, _res) => {
   req.ws.on("close", () => {
     eventhub.off(`dm:conversation/${conversation.id}:typing/${peerId}`, handleTyping);
   });
-
-  const typingKey = getTypingKey(conversation.id, peerId);
-  const lastTypingAt = typingByConversationAndUser.get(typingKey);
-  if (lastTypingAt != null) {
-    const isTyping = Date.now() - lastTypingAt < TYPING_INDICATOR_DURATION_MS;
-    if (isTyping) {
-      eventhub.emit(`dm:conversation/${conversation.id}:typing/${peerId}`, {});
-    } else {
-      typingByConversationAndUser.delete(typingKey);
-    }
-  }
 });
 
 directMessageRouter.post("/dm/:conversationId/messages", async (req, res) => {
@@ -303,10 +300,6 @@ directMessageRouter.post("/dm/:conversationId/typing", async (req, res) => {
     throw new httpErrors.NotFound();
   }
 
-  typingByConversationAndUser.set(
-    getTypingKey(conversation.id, req.session.userId),
-    Date.now(),
-  );
   eventhub.emit(`dm:conversation/${conversation.id}:typing/${req.session.userId}`, {});
 
   return res.status(200).type("application/json").send({});

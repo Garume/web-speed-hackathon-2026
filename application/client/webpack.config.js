@@ -1,8 +1,9 @@
 /// <reference types="webpack-dev-server" />
 const path = require("path");
 
-const CopyWebpackPlugin = require("copy-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const TerserPlugin = require("terser-webpack-plugin");
+const HTMLInlineCSSWebpackPlugin = require("html-inline-css-webpack-plugin").default;
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const webpack = require("webpack");
 
@@ -72,24 +73,16 @@ const config = {
     new MiniCssExtractPlugin({
       filename: "styles/[name].[contenthash].css",
     }),
-    new CopyWebpackPlugin({
-      patterns: [
-        {
-          from: path.resolve(__dirname, "node_modules/katex/dist/fonts"),
-          to: path.resolve(DIST_PATH, "styles/fonts"),
-        },
-      ],
-    }),
     new HtmlWebpackPlugin({
-      inject: "body",
+      inject: "head",
+      scriptLoading: "defer",
       template: path.resolve(SRC_PATH, "./index.html"),
     }),
+    new HTMLInlineCSSWebpackPlugin(),
   ],
   resolve: {
     extensions: [".tsx", ".ts", ".mjs", ".cjs", ".jsx", ".js"],
     alias: {
-      "bayesian-bm25$": path.resolve(__dirname, "node_modules", "bayesian-bm25/dist/index.js"),
-      ["kuromoji$"]: path.resolve(__dirname, "node_modules", "kuromoji/build/kuromoji.js"),
       "@ffmpeg/ffmpeg$": path.resolve(
         __dirname,
         "node_modules",
@@ -118,9 +111,41 @@ const config = {
     },
   },
   optimization: {
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          compress: {
+            passes: 2,
+            drop_console: true,
+          },
+        },
+      }),
+    ],
     runtimeChunk: "single",
     splitChunks: {
       chunks: "all",
+      maxSize: 500000,
+      cacheGroups: {
+        react: {
+          test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+          name: "react",
+          chunks: "all",
+          priority: 20,
+        },
+        syntaxHighlighter: {
+          test: /[\\/]node_modules[\\/]react-syntax-highlighter[\\/]/,
+          name: "syntax-highlighter",
+          chunks: "async",
+          priority: 30,
+        },
+        vendors: {
+          test: /[\\/]node_modules[\\/]/,
+          chunks: "all",
+          priority: 10,
+          reuseExistingChunk: true,
+          minChunks: 2,
+        },
+      },
     },
   },
   cache: {

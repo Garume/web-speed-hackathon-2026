@@ -1,6 +1,6 @@
-import { ComponentProps, isValidElement, ReactElement, ReactNode } from "react";
-import SyntaxHighlighter from "react-syntax-highlighter";
-import { atomOneLight } from "react-syntax-highlighter/dist/esm/styles/hljs";
+import { ComponentProps, isValidElement, lazy, ReactElement, ReactNode, Suspense } from "react";
+
+const LazySyntaxHighlighter = lazy(() => import("./SyntaxHighlighterLoader"));
 
 const getLanguage = (children: ReactElement<ComponentProps<"code">>) => {
   const className = children.props.className;
@@ -20,17 +20,18 @@ export const CodeBlock = ({ children }: ComponentProps<"pre">) => {
   const code = children.props.children?.toString() ?? "";
 
   return (
-    <SyntaxHighlighter
-      customStyle={{
-        fontSize: "14px",
-        padding: "24px 16px",
-        borderRadius: "8px",
-        border: "1px solid var(--color-cax-border)",
-      }}
-      language={language}
-      style={atomOneLight}
-    >
-      {code}
-    </SyntaxHighlighter>
+    <Suspense fallback={<pre>{code}</pre>}>
+      <LazySyntaxHighlighter
+        customStyle={{
+          fontSize: "14px",
+          padding: "24px 16px",
+          borderRadius: "8px",
+          border: "1px solid var(--color-cax-border)",
+        }}
+        language={language}
+      >
+        {code}
+      </LazySyntaxHighlighter>
+    </Suspense>
   );
 };

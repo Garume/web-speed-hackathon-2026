@@ -1,9 +1,9 @@
-import { Helmet } from "react-helmet";
-import { useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 
 import { InfiniteScroll } from "@web-speed-hackathon-2026/client/src/components/foundation/InfiniteScroll";
 import { PostPage } from "@web-speed-hackathon-2026/client/src/components/post/PostPage";
 import { NotFoundContainer } from "@web-speed-hackathon-2026/client/src/containers/NotFoundContainer";
+import { useDocumentTitle } from "@web-speed-hackathon-2026/client/src/hooks/use_document_title";
 import { useFetch } from "@web-speed-hackathon-2026/client/src/hooks/use_fetch";
 import { useInfiniteFetch } from "@web-speed-hackathon-2026/client/src/hooks/use_infinite_fetch";
 import { fetchJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
@@ -29,8 +29,14 @@ const PostPageSkeleton = () => {
   );
 };
 
-const PostContainerContent = ({ postId }: { postId: string | undefined }) => {
-  const { data: post, isLoading: isLoadingPost } = useFetch<Models.Post>(
+const PostContainerContent = ({
+  initialPost,
+  postId,
+}: {
+  initialPost: Models.Post | null;
+  postId: string | undefined;
+}) => {
+  const { data: fetchedPost, isLoading: isLoadingPost } = useFetch<Models.Post>(
     `/api/v1/posts/${postId}`,
     fetchJSON,
   );
@@ -40,15 +46,12 @@ const PostContainerContent = ({ postId }: { postId: string | undefined }) => {
     fetchJSON,
   );
 
-  if (isLoadingPost) {
-    return (
-      <>
-        <Helmet>
-          <title>読込中 - CaX</title>
-        </Helmet>
-        <PostPageSkeleton />
-      </>
-    );
+  const post = fetchedPost ?? initialPost;
+
+  useDocumentTitle(post ? `${post.user.name} さんのつぶやき - CaX` : isLoadingPost ? "読込中 - CaX" : "CaX");
+
+  if (post === null && isLoadingPost) {
+    return <PostPageSkeleton />;
   }
 
   if (post === null) {
@@ -57,15 +60,16 @@ const PostContainerContent = ({ postId }: { postId: string | undefined }) => {
 
   return (
     <InfiniteScroll fetchMore={fetchMore} items={comments}>
-      <Helmet>
-        <title>{post.user.name} さんのつぶやき - CaX</title>
-      </Helmet>
       <PostPage comments={comments} post={post} />
     </InfiniteScroll>
   );
 };
 
 export const PostContainer = () => {
+  const location = useLocation();
   const { postId } = useParams();
-  return <PostContainerContent key={postId} postId={postId} />;
+  const state = location.state as { post?: Models.Post } | null;
+  const initialPost = state !== null && state.post?.id === postId ? state.post : null;
+
+  return <PostContainerContent key={postId} initialPost={initialPost} postId={postId} />;
 };

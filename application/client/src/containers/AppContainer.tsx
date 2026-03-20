@@ -1,32 +1,24 @@
 import { lazy, startTransition, Suspense, useCallback, useEffect, useId, useState } from "react";
-import { HelmetProvider } from "react-helmet";
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 
 import { AppPage } from "@web-speed-hackathon-2026/client/src/components/application/AppPage";
+import { AuthModalContainer } from "@web-speed-hackathon-2026/client/src/containers/AuthModalContainer";
 import { fetchJSON, sendJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 import {
   addDialogOpenRequestListener,
   openDialog,
 } from "@web-speed-hackathon-2026/client/src/utils/dialog";
-const loadAuthModalContainer = () =>
-  import("@web-speed-hackathon-2026/client/src/containers/AuthModalContainer");
-const AuthModalContainer = lazy(() =>
-  loadAuthModalContainer().then((module) => ({
-    default: module.AuthModalContainer,
-  })),
-);
-const loadCrokContainer = () => import("@web-speed-hackathon-2026/client/src/containers/CrokContainer");
 const CrokContainer = lazy(() =>
-  loadCrokContainer().then((module) => ({
+  import("@web-speed-hackathon-2026/client/src/containers/CrokContainer").then((module) => ({
     default: module.CrokContainer,
   })),
 );
-const loadDirectMessageContainer = () =>
-  import("@web-speed-hackathon-2026/client/src/containers/DirectMessageContainer");
 const DirectMessageContainer = lazy(() =>
-  loadDirectMessageContainer().then((module) => ({
-    default: module.DirectMessageContainer,
-  })),
+  import("@web-speed-hackathon-2026/client/src/containers/DirectMessageContainer").then(
+    (module) => ({
+      default: module.DirectMessageContainer,
+    }),
+  ),
 );
 const DirectMessageListContainer = lazy(() =>
   import("@web-speed-hackathon-2026/client/src/containers/DirectMessageListContainer").then(
@@ -40,19 +32,14 @@ const NotFoundContainer = lazy(() =>
     default: module.NotFoundContainer,
   })),
 );
-const loadNewPostModalContainer = () =>
-  import("@web-speed-hackathon-2026/client/src/containers/NewPostModalContainer");
 const NewPostModalContainer = lazy(() =>
-  loadNewPostModalContainer().then((module) => ({
-    default: module.NewPostModalContainer,
-  })),
+  import("@web-speed-hackathon-2026/client/src/containers/NewPostModalContainer").then(
+    (module) => ({
+      default: module.NewPostModalContainer,
+    }),
+  ),
 );
-const loadPostContainer = () => import("@web-speed-hackathon-2026/client/src/containers/PostContainer");
-const PostContainer = lazy(() =>
-  loadPostContainer().then((module) => ({
-    default: module.PostContainer,
-  })),
-);
+import { PostContainer } from "@web-speed-hackathon-2026/client/src/containers/PostContainer";
 const SearchContainer = lazy(() =>
   import("@web-speed-hackathon-2026/client/src/containers/SearchContainer").then((module) => ({
     default: module.SearchContainer,
@@ -63,11 +50,7 @@ const TermContainer = lazy(() =>
     default: module.TermContainer,
   })),
 );
-const TimelineContainer = lazy(() =>
-  import("@web-speed-hackathon-2026/client/src/containers/TimelineContainer").then((module) => ({
-    default: module.TimelineContainer,
-  })),
-);
+import { TimelineContainer } from "@web-speed-hackathon-2026/client/src/containers/TimelineContainer";
 const UserProfileContainer = lazy(() =>
   import("@web-speed-hackathon-2026/client/src/containers/UserProfileContainer").then(
     (module) => ({
@@ -134,21 +117,23 @@ export const AppContainer = () => {
 
   const authModalId = useId();
   const newPostModalId = useId();
-  const [isAuthModalMounted, setIsAuthModalMounted] = useState(false);
   const [isNewPostModalMounted, setIsNewPostModalMounted] = useState(false);
   const [pendingDialogId, setPendingDialogId] = useState<string | null>(null);
 
   useEffect(() => {
     return addDialogOpenRequestListener((dialogId) => {
-      if (dialogId === authModalId) {
-        setIsAuthModalMounted(true);
-        setPendingDialogId(dialogId);
-      } else if (dialogId === newPostModalId) {
+      if (dialogId === newPostModalId) {
         setIsNewPostModalMounted(true);
         setPendingDialogId(dialogId);
       }
     });
-  }, [authModalId, newPostModalId]);
+  }, [newPostModalId]);
+
+  useEffect(() => {
+    if (activeUser != null) {
+      setIsNewPostModalMounted(true);
+    }
+  }, [activeUser]);
 
   useEffect(() => {
     if (pendingDialogId == null) {
@@ -174,14 +159,14 @@ export const AppContainer = () => {
   }, [pendingDialogId]);
 
   return (
-    <HelmetProvider>
+    <>
       <AppPage
         activeUser={activeUser}
         authModalId={authModalId}
         newPostModalId={newPostModalId}
         onLogout={handleLogout}
       >
-        <Suspense fallback={<RouteLoadingFallback />} key={pathname}>
+        <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
             <Route element={<TimelineContainer />} path="/" />
             <Route
@@ -208,11 +193,9 @@ export const AppContainer = () => {
       </AppPage>
 
       <Suspense fallback={null}>
-        {isAuthModalMounted ? (
-          <AuthModalContainer id={authModalId} onUpdateActiveUser={setActiveUser} />
-        ) : null}
+        <AuthModalContainer id={authModalId} onUpdateActiveUser={setActiveUser} />
         {isNewPostModalMounted ? <NewPostModalContainer id={newPostModalId} /> : null}
       </Suspense>
-    </HelmetProvider>
+    </>
   );
 };

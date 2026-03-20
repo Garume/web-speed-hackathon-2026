@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from "react";
+import React, { ReactNode, useEffect, useRef } from "react";
 
 interface Props {
   children: ReactNode;
@@ -6,19 +6,11 @@ interface Props {
   fetchMore: () => void;
 }
 
-export const InfiniteScroll = ({ children, fetchMore, items }: Props) => {
+export const InfiniteScroll = React.memo(({ children, fetchMore, items }: Props) => {
   const latestItem = items[items.length - 1];
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const maybeFetchMore = () => {
-      const documentHeight = document.documentElement.scrollHeight;
-      const viewportBottom = window.scrollY + window.innerHeight;
-      if (documentHeight - viewportBottom <= 300) {
-        fetchMore();
-      }
-    };
-
     const sentinel = sentinelRef.current;
     if (sentinel == null || latestItem === undefined) {
       return;
@@ -36,19 +28,16 @@ export const InfiniteScroll = ({ children, fetchMore, items }: Props) => {
     );
 
     observer.observe(sentinel);
-    maybeFetchMore();
-    window.addEventListener("scroll", maybeFetchMore, { passive: true });
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("scroll", maybeFetchMore);
     };
   }, [latestItem, fetchMore]);
 
   return (
     <>
       {children}
-      <div aria-hidden="true" className="h-px w-full" ref={sentinelRef} />
+      <div ref={sentinelRef} />
     </>
   );
-};
+});

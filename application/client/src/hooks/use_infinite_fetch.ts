@@ -9,16 +9,42 @@ interface ReturnValues<T> {
   fetchMore: () => void;
 }
 
+declare global {
+  interface Window {
+    __INITIAL_POSTS__?: unknown[];
+    __INITIAL_TIMELINE__?: unknown[];
+  }
+}
+
 export function useInfiniteFetch<T>(
   apiPath: string,
   fetcher: (apiPath: string) => Promise<T[]>,
 ): ReturnValues<T> {
-  const internalRef = useRef({ hasMore: true, isLoading: false, offset: 0 });
+  // Check for server-inlined initial data
+  const initialData = useRef<T[] | null>(null);
+  if (initialData.current === null && apiPath === "/api/v1/posts" && window.__INITIAL_POSTS__) {
+    initialData.current = window.__INITIAL_POSTS__ as T[];
+    delete window.__INITIAL_POSTS__;
+  }
+  if (
+    initialData.current === null &&
+    /^\/api\/v1\/users\/[^/]+\/posts$/.test(apiPath) &&
+    window.__INITIAL_TIMELINE__
+  ) {
+    initialData.current = window.__INITIAL_TIMELINE__ as T[];
+    delete window.__INITIAL_TIMELINE__;
+  }
+
+  const internalRef = useRef({
+    hasMore: true,
+    isLoading: false,
+    offset: initialData.current ? initialData.current.length : 0,
+  });
 
   const [result, setResult] = useState<Omit<ReturnValues<T>, "fetchMore">>({
-    data: [],
+    data: initialData.current ?? [],
     error: null,
-    isLoading: true,
+    isLoading: !initialData.current,
   });
 
   const fetchMore = useCallback(() => {
@@ -79,6 +105,12 @@ export function useInfiniteFetch<T>(
         isLoading: false,
         offset: 0,
       };
+      return;
+    }
+
+    // Skip initial fetch if we have inline data
+    if (initialData.current) {
+      initialData.current = null;
       return;
     }
 

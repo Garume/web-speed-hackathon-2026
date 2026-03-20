@@ -5,13 +5,17 @@ const sentimentCache = new Map<string, SentimentResult>();
 
 async function getTokenizer(): Promise<Tokenizer<IpadicFeatures>> {
   tokenizerPromise ??= (async () => {
-    const [{ default: Bluebird }, kuromojiModule] = await Promise.all([
-      import("bluebird"),
-      import("kuromoji"),
-    ]);
-
-    const builder = Bluebird.promisifyAll(kuromojiModule.default.builder({ dicPath: "/dicts" }));
-    return builder.buildAsync();
+    const { default: kuromojiModule } = await import("kuromoji");
+    const builder = kuromojiModule.builder({ dicPath: "/dicts" });
+    return new Promise<Tokenizer<IpadicFeatures>>((resolve, reject) => {
+      builder.build((err, tokenizer) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(tokenizer);
+        }
+      });
+    });
   })();
 
   return tokenizerPromise;

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 
 import { NewDirectMessageModalPage } from "@web-speed-hackathon-2026/client/src/components/direct_message/NewDirectMessageModalPage";
 import { Modal } from "@web-speed-hackathon-2026/client/src/components/modal/Modal";
@@ -29,22 +28,18 @@ export const NewDirectMessageModalContainer = ({ id }: Props) => {
       element.removeEventListener("close", handleClose);
     };
   }, [ref]);
-
-  const navigate = useNavigate();
-
   const handleSubmit = useCallback(
     async (values: NewDirectMessageFormData) => {
       try {
         const conversation = await sendJSON<CreateDirectMessageConversationResponse>(`/api/v1/dm`, {
           peerUsername: values.username.trim().replace(/^@/, ""),
         });
-        navigate(`/dm/${conversation.id}`);
-        return null;
+        window.location.assign(`/dm/${conversation.id}`);
       } catch {
-        return "ユーザーが見つかりませんでした";
+        throw new Error("ユーザーが見つかりませんでした");
       }
     },
-    [navigate],
+    [],
   );
 
   return (

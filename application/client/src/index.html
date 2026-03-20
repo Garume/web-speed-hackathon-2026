@@ -3,7 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f5f4" />
+    <meta name="description" content="Web Speed Hackathon 2026" />
     <title>CaX</title>
+    <style>
+      /* Critical CSS: above-the-fold */
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background-color: #f5f5f4; /* cax-canvas = stone-100 */
+        color: #042f2e; /* cax-text = teal-950 */
+      }
+      #app { min-height: 100vh; }
+    </style>
   </head>
   <body class="bg-cax-canvas text-cax-text">
     <div id="app"></div>

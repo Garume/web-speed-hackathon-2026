@@ -1,4 +1,4 @@
-import { Helmet } from "react-helmet";
+import { useDocumentTitle } from "@web-speed-hackathon-2026/client/src/hooks/use_document_title";
 import { showDialog } from "@web-speed-hackathon-2026/client/src/utils/dialog";
 
 interface Props {
@@ -14,11 +14,10 @@ export const DirectMessageGate = ({
   buttonLabel = "サインイン",
   authModalId,
 }: Props) => {
+  useDocumentTitle("ダイレクトメッセージ - CaX");
+
   return (
     <>
-      <Helmet>
-        <title>ダイレクトメッセージ - CaX</title>
-      </Helmet>
       <section className="space-y-4 px-6 py-12 text-center">
         <p className="text-lg font-bold">{headline}</p>
         {description !== "" ? <p className="text-cax-text-muted text-sm">{description}</p> : null}

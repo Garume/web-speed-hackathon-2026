@@ -13,7 +13,6 @@ import {
 
 import { FontAwesomeIcon } from "@web-speed-hackathon-2026/client/src/components/foundation/FontAwesomeIcon";
 import { DirectMessageFormData } from "@web-speed-hackathon-2026/client/src/direct_message/types";
-import { formatTime } from "@web-speed-hackathon-2026/client/src/utils/datetime";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 interface Props {
@@ -21,6 +20,7 @@ interface Props {
   conversation: Models.DirectMessageConversation;
   activeUser: Models.User;
   isPeerTyping: boolean;
+  isSubmitting: boolean;
   onTyping: () => void;
   onSubmit: (params: DirectMessageFormData) => Promise<void>;
 }
@@ -58,10 +58,12 @@ const DirectMessageList = memo(
     activeUser,
     isPeerTyping,
     messages,
+    peer,
   }: {
     activeUser: Models.User;
     isPeerTyping: boolean;
     messages: Models.DirectMessage[];
+    peer: Models.User;
   }) => {
     const messageListRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +114,9 @@ const DirectMessageList = memo(
                   {message.body}
                 </p>
                 <div className="flex gap-1 text-xs">
-                  <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                  <time dateTime={message.createdAt}>
+                    {(() => { const d = new Date(message.createdAt); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
+                  </time>
                   {isActiveUserSend && message.isRead && (
                     <span className="text-cax-text-muted">既読</span>
                   )}
@@ -127,13 +131,15 @@ const DirectMessageList = memo(
   (prev, next) =>
     prev.activeUser.id === next.activeUser.id &&
     prev.isPeerTyping === next.isPeerTyping &&
+    prev.peer.id === next.peer.id &&
     prev.messages === next.messages,
 );
 
 const DirectMessageComposer = ({
+  isSubmitting,
   onSubmit,
   onTyping,
-}: Pick<Props, "onSubmit" | "onTyping">) => {
+}: Pick<Props, "isSubmitting" | "onSubmit" | "onTyping">) => {
   const formRef = useRef<HTMLFormElement>(null);
   const textAreaId = useId();
   const [text, setText] = useState("");
@@ -157,7 +163,6 @@ const DirectMessageComposer = ({
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
-      const draft = text;
       const body = text.trim();
       if (body.length === 0) {
         event.preventDefault();
@@ -165,9 +170,8 @@ const DirectMessageComposer = ({
       }
 
       event.preventDefault();
-      setText("");
-      void onSubmit({ body }).catch(() => {
-        setText(draft);
+      void onSubmit({ body }).then(() => {
+        setText("");
       });
     },
     [onSubmit, text],
@@ -190,11 +194,12 @@ const DirectMessageComposer = ({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           rows={textAreaRows}
+          disabled={isSubmitting}
         />
       </div>
       <button
         className="bg-cax-brand text-cax-surface-raised hover:bg-cax-brand-strong rounded-full px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={isInvalid}
+        disabled={isInvalid || isSubmitting}
         type="submit"
       >
         <FontAwesomeIcon iconType="arrow-right" styleType="solid" />
@@ -208,6 +213,7 @@ export const DirectMessagePage = ({
   conversation,
   activeUser,
   isPeerTyping,
+  isSubmitting,
   onTyping,
   onSubmit,
 }: Props) => {
@@ -229,6 +235,7 @@ export const DirectMessagePage = ({
         activeUser={activeUser}
         isPeerTyping={isPeerTyping}
         messages={conversation.messages}
+        peer={peer}
       />
 
       <div className="sticky bottom-12 z-10 lg:bottom-0">
@@ -239,6 +246,7 @@ export const DirectMessagePage = ({
         )}
 
         <DirectMessageComposer
+          isSubmitting={isSubmitting}
           onSubmit={onSubmit}
           onTyping={onTyping}
         />

@@ -2,7 +2,6 @@ import { FastAverageColor } from "fast-average-color";
 import { ReactEventHandler, useCallback, useState } from "react";
 
 import { FontAwesomeIcon } from "@web-speed-hackathon-2026/client/src/components/foundation/FontAwesomeIcon";
-import { formatDate } from "@web-speed-hackathon-2026/client/src/utils/datetime";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 interface Props {
@@ -43,7 +42,9 @@ export const UserProfileHeader = ({ user }: Props) => {
             <FontAwesomeIcon iconType="calendar-alt" styleType="regular" />
           </span>
           <span>
-            <time dateTime={new Date(user.createdAt).toISOString()}>{formatDate(user.createdAt)}</time>
+            <time dateTime={new Date(user.createdAt).toISOString()}>
+              {new Intl.DateTimeFormat('ja-JP', {year:'numeric', month:'long', day:'numeric'}).format(new Date(user.createdAt))}
+            </time>
             からサービスを利用しています
           </span>
         </p>

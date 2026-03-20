@@ -1,4 +1,4 @@
-import { memo } from "react";
+import React from "react";
 import classNames from "classnames";
 
 import { AspectRatioBox } from "@web-speed-hackathon-2026/client/src/components/foundation/AspectRatioBox";
@@ -6,16 +6,18 @@ import { CoveredImage } from "@web-speed-hackathon-2026/client/src/components/fo
 import { getImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 interface Props {
+  eagerAll?: boolean;
   images: Models.Image[];
   prioritize?: boolean;
 }
 
-export const ImageArea = memo(({ images, prioritize = false }: Props) => {
+export const ImageArea = React.memo(({ eagerAll = false, images, prioritize = false }: Props) => {
   return (
     <AspectRatioBox aspectHeight={9} aspectWidth={16}>
       <div className="border-cax-border grid h-full w-full grid-cols-2 grid-rows-2 gap-1 overflow-hidden rounded-lg border">
         {images.map((image, idx) => {
           const shouldPrioritizeImage = prioritize && idx === 0;
+          const shouldEagerLoadImage = eagerAll || shouldPrioritizeImage;
 
           return (
             <div
@@ -30,9 +32,11 @@ export const ImageArea = memo(({ images, prioritize = false }: Props) => {
             >
               <CoveredImage
                 alt={image.alt}
-                fetchPriority={shouldPrioritizeImage ? "high" : "auto"}
-                loading={shouldPrioritizeImage ? "eager" : "lazy"}
+                fetchPriority={shouldEagerLoadImage ? "high" : "auto"}
+                height={image.height}
+                loading={shouldEagerLoadImage ? "eager" : "lazy"}
                 src={getImagePath(image.id)}
+                width={image.width}
               />
             </div>
           );

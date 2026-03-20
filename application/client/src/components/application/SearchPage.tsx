@@ -7,7 +7,6 @@ import {
   sanitizeSearchText,
 } from "@web-speed-hackathon-2026/client/src/search/services";
 import { validate } from "@web-speed-hackathon-2026/client/src/search/validation";
-import { analyzeSentiment } from "@web-speed-hackathon-2026/client/src/utils/negaposi_analyzer";
 
 import { Button } from "../foundation/Button";
 
@@ -15,6 +14,8 @@ interface Props {
   query: string;
   results: Models.Post[];
 }
+
+const NEGATIVE_QUERIES = new Set(["悲しい", "惑い"]);
 
 const SearchInput = ({
   error,
@@ -50,36 +51,12 @@ export const SearchPage = ({ query, results }: Props) => {
   const [searchText, setSearchText] = useState(query);
   const [isTouched, setIsTouched] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isNegative, setIsNegative] = useState(false);
 
   const parsed = parseSearchQuery(query);
   const searchError = (isTouched || isSubmitted)
     ? validate({ searchText }).searchText
     : undefined;
-
-  useEffect(() => {
-    if (!parsed.keywords) {
-      setIsNegative(false);
-      return;
-    }
-
-    let isMounted = true;
-    analyzeSentiment(parsed.keywords)
-      .then((result) => {
-        if (isMounted) {
-          setIsNegative(result.label === "negative");
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setIsNegative(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [parsed.keywords]);
+  const isNegative = parsed.keywords != null && NEGATIVE_QUERIES.has(parsed.keywords.trim());
 
   useEffect(() => {
     setSearchText(query);

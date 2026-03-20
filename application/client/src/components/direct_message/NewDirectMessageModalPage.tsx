@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 import { Button } from "@web-speed-hackathon-2026/client/src/components/foundation/Button";
 import { FormInputField } from "@web-speed-hackathon-2026/client/src/components/foundation/FormInputField";
@@ -6,58 +6,43 @@ import { ModalErrorMessage } from "@web-speed-hackathon-2026/client/src/componen
 import { ModalSubmitButton } from "@web-speed-hackathon-2026/client/src/components/modal/ModalSubmitButton";
 import { NewDirectMessageFormData } from "@web-speed-hackathon-2026/client/src/direct_message/types";
 import { validate } from "@web-speed-hackathon-2026/client/src/direct_message/validation";
-import { FormTouched, hasFormErrors } from "@web-speed-hackathon-2026/client/src/utils/form";
 import { closeDialog } from "@web-speed-hackathon-2026/client/src/utils/dialog";
 
 interface Props {
   id: string;
-  onSubmit: (values: NewDirectMessageFormData) => Promise<string | null>;
+  onUsernameBlur?: (username: string) => void;
+  onSubmit: (values: NewDirectMessageFormData) => Promise<void>;
 }
 
-const INITIAL_VALUES: NewDirectMessageFormData = {
-  username: "",
-};
+export const NewDirectMessageModalPage = ({ id, onSubmit, onUsernameBlur }: Props) => {
+  const [username, setUsername] = useState("");
+  const usernameRef = useRef("");
+  const [fieldError, setFieldError] = useState<string | undefined>();
+  const [touched, setTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | undefined>();
 
-export const NewDirectMessageModalPage = ({ id, onSubmit }: Props) => {
-  const [values, setValues] = useState(INITIAL_VALUES);
-  const [touched, setTouched] = useState<FormTouched<NewDirectMessageFormData>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const errors = useMemo(() => validate(values), [values]);
-  const invalid = hasFormErrors(errors);
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setSubmitError(null);
-    setValues({
-      username: event.target.value,
-    });
-  };
-
-  const handleBlur = () => {
-    setTouched((currentTouched) =>
-      currentTouched.username ? currentTouched : { ...currentTouched, username: true },
-    );
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setTouched({
-      username: true,
-    });
-    setSubmitError(null);
-
-    if (invalid) {
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setTouched(true);
+    const currentUsername = usernameRef.current;
+    const validationErrors = validate({ username: currentUsername });
+    if (validationErrors.username) {
+      setFieldError(validationErrors.username);
       return;
     }
-
-    setIsSubmitting(true);
+    setFieldError(undefined);
+    setSubmitting(true);
     try {
-      const error = await onSubmit(values);
-      setSubmitError(error);
+      await onSubmit({ username: currentUsername });
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
+
+  const hasErrors = !!validate({ username }).username;
 
   return (
     <div className="grid gap-y-6">
@@ -65,17 +50,28 @@ export const NewDirectMessageModalPage = ({ id, onSubmit }: Props) => {
 
       <form className="flex flex-col gap-y-6" onSubmit={handleSubmit}>
         <FormInputField
-          error={touched.username ? errors.username : undefined}
+          name="username"
           label="ユーザー名"
-          leftItem={<span className="text-cax-text-subtle leading-none">@</span>}
-          onBlur={handleBlur}
-          onChange={handleChange}
           placeholder="username"
-          value={values.username}
+          leftItem={<span className="text-cax-text-subtle leading-none">@</span>}
+          value={username}
+          onChange={(e) => {
+            usernameRef.current = e.target.value;
+            setUsername(e.target.value);
+            if (touched) {
+              const errors = validate({ username: e.target.value });
+              setFieldError(errors.username);
+            }
+          }}
+          onBlur={() => {
+            setTouched(true);
+            onUsernameBlur?.(usernameRef.current);
+          }}
+          error={touched ? fieldError : undefined}
         />
 
         <div className="grid gap-y-2">
-          <ModalSubmitButton disabled={isSubmitting || invalid} loading={isSubmitting}>
+          <ModalSubmitButton disabled={submitting || hasErrors} loading={submitting}>
             DMを開始
           </ModalSubmitButton>
           <Button onClick={() => closeDialog(id)} variant="secondary">

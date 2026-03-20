@@ -4,10 +4,26 @@ import { Button } from "@web-speed-hackathon-2026/client/src/components/foundati
 import { FontAwesomeIcon } from "@web-speed-hackathon-2026/client/src/components/foundation/FontAwesomeIcon";
 import { Link } from "@web-speed-hackathon-2026/client/src/components/foundation/Link";
 import { useWs } from "@web-speed-hackathon-2026/client/src/hooks/use_ws";
-import { formatRelativeTime } from "@web-speed-hackathon-2026/client/src/utils/datetime";
 import { showDialog } from "@web-speed-hackathon-2026/client/src/utils/dialog";
 import { fetchJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const past = new Date(dateStr).getTime();
+  const diff = now - past;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return `${sec}秒前`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}分前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}日前`;
+  const mon = Math.floor(day / 30);
+  if (mon < 12) return `${mon}ヶ月前`;
+  return `${Math.floor(mon / 12)}年前`;
+}
 
 interface Props {
   activeUser: Models.User;
@@ -104,7 +120,7 @@ export const DirectMessageListPage = ({ activeUser, newDmModalId }: Props) => {
                             className="text-cax-text-subtle text-xs"
                             dateTime={lastMessage.createdAt}
                           >
-                            {formatRelativeTime(lastMessage.createdAt)}
+                            {timeAgo(lastMessage.createdAt)}
                           </time>
                         )}
                       </div>

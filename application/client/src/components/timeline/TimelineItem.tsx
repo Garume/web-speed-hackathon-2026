@@ -6,7 +6,7 @@ import { MovieArea } from "@web-speed-hackathon-2026/client/src/components/post/
 import { SoundArea } from "@web-speed-hackathon-2026/client/src/components/post/SoundArea";
 import { TranslatableText } from "@web-speed-hackathon-2026/client/src/components/post/TranslatableText";
 import { formatDate } from "@web-speed-hackathon-2026/client/src/utils/datetime";
-import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
+import { getImagePath, getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 const isClickedAnchorOrButton = (target: EventTarget | null, currentTarget: Element): boolean => {
   while (target !== null && target instanceof Element) {
@@ -33,6 +33,15 @@ interface Props {
 
 export const TimelineItem = memo(({ post, prioritizeMedia = false }: Props) => {
   const navigate = useNavigate();
+  const warmupMedia = useCallback(() => {
+    const firstImage = post.images?.[0];
+    if (!firstImage) {
+      return;
+    }
+
+    const image = new window.Image();
+    image.src = getImagePath(firstImage.id);
+  }, [post.images]);
 
   /**
    * ボタンやリンク以外の箇所をクリックしたとき かつ 文字が選択されてないとき、投稿詳細ページに遷移する
@@ -41,10 +50,11 @@ export const TimelineItem = memo(({ post, prioritizeMedia = false }: Props) => {
     (ev) => {
       const isSelectedText = document.getSelection()?.isCollapsed === false;
       if (!isClickedAnchorOrButton(ev.target, ev.currentTarget) && !isSelectedText) {
-        navigate(`/posts/${post.id}`);
+        warmupMedia();
+        navigate(`/posts/${post.id}`, { state: { post } });
       }
     },
-    [post, navigate],
+    [post, navigate, warmupMedia],
   );
 
   return (
@@ -78,7 +88,12 @@ export const TimelineItem = memo(({ post, prioritizeMedia = false }: Props) => {
               @{post.user.username}
             </Link>
             <span className="text-cax-text-muted pr-1">-</span>
-            <Link className="text-cax-text-muted pr-1 hover:underline" to={`/posts/${post.id}`}>
+            <Link
+              className="text-cax-text-muted pr-1 hover:underline"
+              onClick={warmupMedia}
+              state={{ post }}
+              to={`/posts/${post.id}`}
+            >
               <time dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
             </Link>
           </p>

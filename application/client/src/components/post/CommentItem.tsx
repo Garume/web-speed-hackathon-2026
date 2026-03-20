@@ -1,13 +1,14 @@
+import React from "react";
+
 import { Link } from "@web-speed-hackathon-2026/client/src/components/foundation/Link";
 import { TranslatableText } from "@web-speed-hackathon-2026/client/src/components/post/TranslatableText";
-import { formatDate } from "@web-speed-hackathon-2026/client/src/utils/datetime";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 interface Props {
   comment: Models.Comment;
 }
 
-export const CommentItem = ({ comment }: Props) => {
+export const CommentItem = React.memo(({ comment }: Props) => {
   return (
     <article className="hover:bg-cax-surface-subtle px-1 sm:px-4">
       <div className="border-cax-border flex border-b px-2 pt-2 pb-4 sm:px-4">
@@ -41,10 +42,12 @@ export const CommentItem = ({ comment }: Props) => {
             <TranslatableText text={comment.text} />
           </div>
           <p className="text-cax-text-muted pt-1 text-xs">
-            <time dateTime={new Date(comment.createdAt).toISOString()}>{formatDate(comment.createdAt)}</time>
+            <time dateTime={new Date(comment.createdAt).toISOString()}>
+              {new Intl.DateTimeFormat('ja-JP', {year:'numeric', month:'long', day:'numeric'}).format(new Date(comment.createdAt))}
+            </time>
           </p>
         </div>
       </div>
     </article>
   );
-};
+});

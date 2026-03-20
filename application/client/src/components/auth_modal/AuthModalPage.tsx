@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { AuthFormData } from "@web-speed-hackathon-2026/client/src/auth/types";
 import { validate } from "@web-speed-hackathon-2026/client/src/auth/validation";
@@ -6,66 +6,62 @@ import { FormInputField } from "@web-speed-hackathon-2026/client/src/components/
 import { Link } from "@web-speed-hackathon-2026/client/src/components/foundation/Link";
 import { ModalErrorMessage } from "@web-speed-hackathon-2026/client/src/components/modal/ModalErrorMessage";
 import { ModalSubmitButton } from "@web-speed-hackathon-2026/client/src/components/modal/ModalSubmitButton";
-import { FormTouched, hasFormErrors } from "@web-speed-hackathon-2026/client/src/utils/form";
 
 interface Props {
   onRequestCloseModal: () => void;
-  onSubmit: (values: AuthFormData) => Promise<string | null>;
+  onSubmit: (values: AuthFormData) => Promise<void>;
 }
 
-const INITIAL_VALUES: AuthFormData = {
-  type: "signin",
-  username: "",
-  name: "",
-  password: "",
-};
-
 export const AuthModalPage = ({ onRequestCloseModal, onSubmit }: Props) => {
-  const [values, setValues] = useState<AuthFormData>(INITIAL_VALUES);
-  const [touched, setTouched] = useState<FormTouched<AuthFormData>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const errors = useMemo(() => validate(values), [values]);
-  const invalid = hasFormErrors(errors);
-  const type = values.type;
+  const [type, setType] = useState<"signin" | "signup">("signin");
+  const [values, setValues] = useState({ username: "", name: "", password: "" });
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<string, boolean>>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | undefined>();
 
-  const updateValue =
-    (field: "username" | "name" | "password") => (event: ChangeEvent<HTMLInputElement>) => {
-      const { value } = event.target;
-      setSubmitError(null);
-      setValues((currentValues) => ({
-        ...currentValues,
-        [field]: value,
-      }));
-    };
+  const currentValues: AuthFormData = { ...values, type };
 
-  const markTouched = (field: keyof AuthFormData) => () => {
-    setTouched((currentTouched) =>
-      currentTouched[field] ? currentTouched : { ...currentTouched, [field]: true },
-    );
+  const handleChange = (name: string, value: string) => {
+    const newValues = { ...values, [name]: value };
+    setValues(newValues);
+    if (touched[name]) {
+      setErrors(validate({ ...newValues, type }));
+    }
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setTouched({
-      username: true,
-      name: true,
-      password: true,
-    });
-    setSubmitError(null);
+  const handleBlur = (name: string) => {
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    setErrors(validate(currentValues));
+  };
 
-    if (invalid) {
-      return;
-    }
+  const toggleType = () => {
+    const newType = type === "signin" ? "signup" : "signin";
+    setType(newType);
+    setErrors({});
+    setTouched({});
+    setSubmitError(undefined);
+  };
 
-    setIsSubmitting(true);
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const validationErrors = validate(currentValues);
+    setErrors(validationErrors);
+    setTouched({ username: true, name: true, password: true });
+
+    if (Object.values(validationErrors).some(Boolean)) return;
+
+    setSubmitting(true);
     try {
-      const error = await onSubmit(values);
-      setSubmitError(error);
+      await onSubmit(currentValues);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
+
+  const hasErrors = Object.values(validate(currentValues)).some(Boolean);
 
   return (
     <form className="grid gap-y-6" onSubmit={handleSubmit}>
@@ -76,14 +72,7 @@ export const AuthModalPage = ({ onRequestCloseModal, onSubmit }: Props) => {
       <div className="flex justify-center">
         <button
           className="text-cax-brand underline"
-          onClick={() => {
-            setSubmitError(null);
-            setTouched({});
-            setValues((currentValues) => ({
-              ...currentValues,
-              type: currentValues.type === "signin" ? "signup" : "signin",
-            }));
-          }}
+          onClick={toggleType}
           type="button"
         >
           {type === "signin" ? "初めての方はこちら" : "サインインはこちら"}
@@ -92,34 +81,37 @@ export const AuthModalPage = ({ onRequestCloseModal, onSubmit }: Props) => {
 
       <div className="grid gap-y-2">
         <FormInputField
-          autoComplete="username"
-          error={touched.username ? errors.username : undefined}
+          name="username"
           label="ユーザー名"
           leftItem={<span className="text-cax-text-subtle leading-none">@</span>}
-          onBlur={markTouched("username")}
-          onChange={updateValue("username")}
+          autoComplete="username"
           value={values.username}
+          onChange={(e) => handleChange("username", e.target.value)}
+          onBlur={() => handleBlur("username")}
+          error={touched.username ? errors.username : undefined}
         />
 
         {type === "signup" && (
           <FormInputField
-            autoComplete="nickname"
-            error={touched.name ? errors.name : undefined}
+            name="name"
             label="名前"
-            onBlur={markTouched("name")}
-            onChange={updateValue("name")}
+            autoComplete="nickname"
             value={values.name}
+            onChange={(e) => handleChange("name", e.target.value)}
+            onBlur={() => handleBlur("name")}
+            error={touched.name ? errors.name : undefined}
           />
         )}
 
         <FormInputField
-          autoComplete={type === "signup" ? "new-password" : "current-password"}
-          error={touched.password ? errors.password : undefined}
+          name="password"
           label="パスワード"
-          onBlur={markTouched("password")}
-          onChange={updateValue("password")}
           type="password"
+          autoComplete={type === "signup" ? "new-password" : "current-password"}
           value={values.password}
+          onChange={(e) => handleChange("password", e.target.value)}
+          onBlur={() => handleBlur("password")}
+          error={touched.password ? errors.password : undefined}
         />
       </div>
 
@@ -132,7 +124,7 @@ export const AuthModalPage = ({ onRequestCloseModal, onSubmit }: Props) => {
         </p>
       ) : null}
 
-      <ModalSubmitButton disabled={isSubmitting || invalid} loading={isSubmitting}>
+      <ModalSubmitButton disabled={submitting || hasErrors} loading={submitting}>
         {type === "signin" ? "サインイン" : "登録する"}
       </ModalSubmitButton>
 

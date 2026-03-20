@@ -1,18 +1,17 @@
-import { memo } from "react";
+import React from "react";
 
 import { Link } from "@web-speed-hackathon-2026/client/src/components/foundation/Link";
 import { ImageArea } from "@web-speed-hackathon-2026/client/src/components/post/ImageArea";
 import { MovieArea } from "@web-speed-hackathon-2026/client/src/components/post/MovieArea";
 import { SoundArea } from "@web-speed-hackathon-2026/client/src/components/post/SoundArea";
 import { TranslatableText } from "@web-speed-hackathon-2026/client/src/components/post/TranslatableText";
-import { formatDate } from "@web-speed-hackathon-2026/client/src/utils/datetime";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 interface Props {
   post: Models.Post;
 }
 
-export const PostItem = memo(({ post }: Props) => {
+export const PostItem = React.memo(({ post }: Props) => {
   return (
     <article className="px-1 sm:px-4">
       <div className="border-cax-border border-b px-4 pt-4 pb-4">
@@ -25,7 +24,7 @@ export const PostItem = memo(({ post }: Props) => {
               <img
                 alt={post.user.profileImage.alt}
                 decoding="async"
-                loading="lazy"
+                loading="eager"
                 src={getProfileImagePath(post.user.profileImage.id)}
               />
             </Link>
@@ -55,7 +54,7 @@ export const PostItem = memo(({ post }: Props) => {
           </div>
           {post.images?.length > 0 ? (
             <div className="relative mt-2 w-full">
-              <ImageArea images={post.images} prioritize />
+              <ImageArea eagerAll images={post.images} prioritize />
             </div>
           ) : null}
           {post.movie ? (
@@ -70,7 +69,9 @@ export const PostItem = memo(({ post }: Props) => {
           ) : null}
           <p className="mt-2 text-sm sm:mt-4">
             <Link className="text-cax-text-muted hover:underline" to={`/posts/${post.id}`}>
-              <time dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
+              <time dateTime={new Date(post.createdAt).toISOString()}>
+                {new Intl.DateTimeFormat('ja-JP', {year:'numeric', month:'long', day:'numeric'}).format(new Date(post.createdAt))}
+              </time>
             </Link>
           </p>
         </div>

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@tsconfig/strictest": "2.0.8",
+    "shrink-ray-current": "^4.0.1",
     "@web-speed-hackathon-2026/server": "workspace:*",
     "bcrypt": "6.0.0",
     "body-parser": "2.2.0",
