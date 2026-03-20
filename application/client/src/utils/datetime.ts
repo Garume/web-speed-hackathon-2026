@@ -6,6 +6,11 @@ const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
   hour: "2-digit",
   minute: "2-digit",
 });
+const dateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
 
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
@@ -43,4 +48,8 @@ export function formatRelativeTime(dateText: string) {
 
 export function formatTime(dateText: string) {
   return timeFormatter.format(new Date(dateText));
+}
+
+export function formatDate(dateText: string) {
+  return dateFormatter.format(new Date(dateText));
 }

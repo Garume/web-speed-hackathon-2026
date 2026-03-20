@@ -1,17 +1,18 @@
-import moment from "moment";
+import { memo } from "react";
 
 import { Link } from "@web-speed-hackathon-2026/client/src/components/foundation/Link";
 import { ImageArea } from "@web-speed-hackathon-2026/client/src/components/post/ImageArea";
 import { MovieArea } from "@web-speed-hackathon-2026/client/src/components/post/MovieArea";
 import { SoundArea } from "@web-speed-hackathon-2026/client/src/components/post/SoundArea";
 import { TranslatableText } from "@web-speed-hackathon-2026/client/src/components/post/TranslatableText";
+import { formatDate } from "@web-speed-hackathon-2026/client/src/utils/datetime";
 import { getProfileImagePath } from "@web-speed-hackathon-2026/client/src/utils/get_path";
 
 interface Props {
   post: Models.Post;
 }
 
-export const PostItem = ({ post }: Props) => {
+export const PostItem = memo(({ post }: Props) => {
   return (
     <article className="px-1 sm:px-4">
       <div className="border-cax-border border-b px-4 pt-4 pb-4">
@@ -69,13 +70,11 @@ export const PostItem = ({ post }: Props) => {
           ) : null}
           <p className="mt-2 text-sm sm:mt-4">
             <Link className="text-cax-text-muted hover:underline" to={`/posts/${post.id}`}>
-              <time dateTime={moment(post.createdAt).toISOString()}>
-                {moment(post.createdAt).locale("ja").format("LL")}
-              </time>
+              <time dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
             </Link>
           </p>
         </div>
       </div>
     </article>
   );
-};
+});

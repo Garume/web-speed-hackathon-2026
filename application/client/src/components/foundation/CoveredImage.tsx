@@ -1,4 +1,4 @@
-import { MouseEvent, useCallback, useId } from "react";
+import { memo, MouseEvent, useCallback, useId } from "react";
 
 import { Button } from "@web-speed-hackathon-2026/client/src/components/foundation/Button";
 import { Modal } from "@web-speed-hackathon-2026/client/src/components/modal/Modal";
@@ -14,7 +14,8 @@ interface Props {
 /**
  * アスペクト比を維持したまま、要素のコンテンツボックス全体を埋めるように画像を拡大縮小します
  */
-export const CoveredImage = ({ alt, fetchPriority = "auto", loading = "lazy", src }: Props) => {
+export const CoveredImage = memo(
+  ({ alt, fetchPriority = "auto", loading = "lazy", src }: Props) => {
   const dialogId = useId();
   // ダイアログの背景をクリックしたときに投稿詳細ページに遷移しないようにする
   const handleDialogClick = useCallback((ev: MouseEvent<HTMLDialogElement>) => {
@@ -25,11 +26,12 @@ export const CoveredImage = ({ alt, fetchPriority = "auto", loading = "lazy", sr
     <div className="relative h-full w-full overflow-hidden">
       <img
         alt={alt}
-        className="h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover"
         decoding="async"
         fetchPriority={fetchPriority}
         loading={loading}
         src={src}
+        style={{ inset: 0, position: "absolute" }}
       />
 
       <button
@@ -53,4 +55,5 @@ export const CoveredImage = ({ alt, fetchPriority = "auto", loading = "lazy", sr
       </Modal>
     </div>
   );
-};
+  },
+);
