@@ -3,6 +3,7 @@ import { FindOptions, Includeable, Op, Order, WhereOptions } from "sequelize";
 
 import { Post, User } from "@web-speed-hackathon-2026/server/src/models";
 import { parseSearchQuery } from "@web-speed-hackathon-2026/server/src/utils/parse_search_query.js";
+import { sendCachedJson, trySendCachedJson } from "@web-speed-hackathon-2026/server/src/utils/response_cache";
 
 export const searchRouter = Router();
 
@@ -40,17 +41,21 @@ function buildPostQueryBase(): Pick<FindOptions, "attributes" | "include" | "ord
 }
 
 searchRouter.get("/search", async (req, res) => {
+  if (trySendCachedJson(res, req.originalUrl)) {
+    return;
+  }
+
   const query = req.query["q"];
 
   if (typeof query !== "string" || query.trim() === "") {
-    return res.status(200).type("application/json").send([]);
+    return sendCachedJson(res, req.originalUrl, []);
   }
 
   const { keywords, sinceDate, untilDate } = parseSearchQuery(query);
 
   // キーワードも日付フィルターもない場合は空配列を返す
   if (!keywords && !sinceDate && !untilDate) {
-    return res.status(200).type("application/json").send([]);
+    return sendCachedJson(res, req.originalUrl, []);
   }
 
   const searchTerm = keywords ? `%${keywords}%` : null;
@@ -109,5 +114,5 @@ searchRouter.get("/search", async (req, res) => {
 
   const result = mergedPosts.slice(offset || 0, (offset || 0) + (limit || mergedPosts.length));
 
-  return res.status(200).type("application/json").send(result);
+  return sendCachedJson(res, req.originalUrl, result);
 });

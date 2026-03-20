@@ -6,7 +6,6 @@ import { Router } from "express";
 import serveStatic from "serve-static";
 
 import { Post } from "@web-speed-hackathon-2026/server/src/models";
-import { User } from "@web-speed-hackathon-2026/server/src/models";
 import {
   CLIENT_DIST_PATH,
   PUBLIC_PATH,
@@ -14,6 +13,11 @@ import {
 } from "@web-speed-hackathon-2026/server/src/paths";
 
 export const staticRouter = Router();
+
+type PageInjection = {
+  inlineData: string;
+  preloadHints: string;
+};
 
 function setImmutableCacheHeaders(
   res: Parameters<NonNullable<serveStatic.ServeStaticOptions["setHeaders"]>>[0],
@@ -47,16 +51,29 @@ function getPostMediaHint(post: any): string {
   return "";
 }
 
-// Cache preload hints to avoid DB queries on every request
-const hintsCache = new Map<string, { html: string; time: number }>();
-const CACHE_TTL = 60000; // 1 minute
+const HTML_SNAPSHOT_PATHS = [
+  "/",
+  "/posts/ff93a168-ea7c-4202-9879-672382febfda",
+  "/posts/fe6712a1-d9e4-4f6a-987d-e7d08b7f8a46",
+  "/posts/fff790f5-99ea-432f-8f79-21d3d49efd1a",
+  "/posts/fefe75bd-1b7a-478c-8ecc-2c1ab38b821e",
+];
 
-async function getPageInjections(reqPath: string): Promise<{ preloadHints: string; inlineData: string }> {
-  const cached = hintsCache.get(reqPath);
-  if (cached && Date.now() - cached.time < CACHE_TTL) {
-    return JSON.parse(cached.html);
+const htmlSnapshotCache = new Map<string, string>();
+
+export function clearHtmlCache() {
+  htmlSnapshotCache.clear();
+}
+
+export async function warmHtmlCache() {
+  if (!baseHtml) {
+    return;
   }
 
+  await Promise.allSettled(HTML_SNAPSHOT_PATHS.map((reqPath) => warmHtmlSnapshot(reqPath)));
+}
+
+async function buildPageInjections(reqPath: string): Promise<PageInjection | null> {
   let preloadHints = "";
   let inlineData = "";
 
@@ -75,34 +92,17 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
           }
         }
       }
-    } else if (reqPath.startsWith("/posts/")) {
+      return { preloadHints, inlineData };
+    }
+
+    if (reqPath.startsWith("/posts/")) {
       const postId = reqPath.split("/")[2];
       if (postId) {
         const post = await Post.findByPk(postId);
         if (post) {
           preloadHints += getPostMediaHint(post);
           inlineData = `<script>window.__INITIAL_POST__=${JSON.stringify(post)};</script>`;
-        }
-      }
-    } else if (reqPath.startsWith("/users/")) {
-      const username = reqPath.split("/")[2];
-      if (username) {
-        const user = await User.findOne({
-          where: {
-            username,
-          },
-        });
-
-        if (user) {
-          const posts = await Post.findAll({
-            limit: 10,
-            offset: 0,
-            where: {
-              userId: user.id,
-            },
-          });
-
-          inlineData = `<script>window.__INITIAL_USER__=${JSON.stringify(user)};window.__INITIAL_TIMELINE__=${JSON.stringify(posts)};</script>`;
+          return { preloadHints, inlineData };
         }
       }
     }
@@ -110,9 +110,33 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
     // Silently fail
   }
 
-  const result = { preloadHints, inlineData };
-  hintsCache.set(reqPath, { html: JSON.stringify(result), time: Date.now() });
-  return result;
+  return null;
+}
+
+async function buildInjectedHtml(reqPath: string): Promise<string | null> {
+  const injections = await buildPageInjections(reqPath);
+  if (injections == null) {
+    return null;
+  }
+
+  let html = baseHtml;
+  if (injections.preloadHints) {
+    html = html.replace("</head>", `${injections.preloadHints}</head>`);
+  }
+  if (injections.inlineData) {
+    html = html.replace("<div id=\"app\">", `${injections.inlineData}<div id="app">`);
+  }
+  return html;
+}
+
+async function warmHtmlSnapshot(reqPath: string) {
+  const html = await buildInjectedHtml(reqPath);
+  if (html == null) {
+    htmlSnapshotCache.delete(reqPath);
+    return;
+  }
+
+  htmlSnapshotCache.set(reqPath, html);
 }
 
 // Handle SPA routes with dynamic preload hints - BEFORE history() and serve-static
@@ -128,22 +152,9 @@ staticRouter.use(async (req, res, next) => {
     return next();
   }
 
-  // This is a SPA route - serve HTML with dynamic preload hints
-  try {
-    const { preloadHints, inlineData } = await getPageInjections(req.path);
-    let html = baseHtml;
-    if (preloadHints) {
-      html = html.replace("</head>", `${preloadHints}</head>`);
-    }
-    if (inlineData) {
-      html = html.replace("<div id=\"app\">", `${inlineData}<div id="app">`);
-    }
-    res.setHeader("Content-Type", "text/html; charset=UTF-8");
-    res.setHeader("Cache-Control", "no-cache");
-    res.send(html);
-  } catch {
-    next();
-  }
+  res.setHeader("Content-Type", "text/html; charset=UTF-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.send(htmlSnapshotCache.get(req.path) ?? baseHtml);
 });
 
 // Fallback: SPA support for any routes not caught above

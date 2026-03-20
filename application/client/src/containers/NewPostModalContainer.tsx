@@ -63,6 +63,20 @@ interface Props {
   id: string;
 }
 
+function prefetchPost(post: Models.Post) {
+  const apiPath = `/api/v1/posts/${post.id}`;
+  window.__PREFETCH_JSON__ = window.__PREFETCH_JSON__ ?? {};
+  window.__PREFETCH_JSON__[apiPath] = fetch(apiPath, { credentials: "same-origin" }).then(
+    async (response) => {
+      if (!response.ok) {
+        throw new Error((await response.text()) || `Request failed with status ${response.status}`);
+      }
+
+      return (await response.json()) as Models.Post;
+    },
+  );
+}
+
 export const NewPostModalContainer = ({ id }: Props) => {
   const dialogId = useId();
   const ref = useRef<HTMLDialogElement>(null);
@@ -97,6 +111,7 @@ export const NewPostModalContainer = ({ id }: Props) => {
       try {
         setIsLoading(true);
         const post = await sendNewPost(params);
+        prefetchPost(post);
         ref.current?.close();
         navigate(`/posts/${post.id}`);
       } catch {

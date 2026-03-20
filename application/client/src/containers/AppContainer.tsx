@@ -2,12 +2,16 @@ import { lazy, startTransition, Suspense, useCallback, useEffect, useId, useStat
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 
 import { AppPage } from "@web-speed-hackathon-2026/client/src/components/application/AppPage";
-import { AuthModalContainer } from "@web-speed-hackathon-2026/client/src/containers/AuthModalContainer";
 import { fetchJSON, sendJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 import {
   addDialogOpenRequestListener,
   openDialog,
 } from "@web-speed-hackathon-2026/client/src/utils/dialog";
+const AuthModalContainer = lazy(() =>
+  import("@web-speed-hackathon-2026/client/src/containers/AuthModalContainer").then((module) => ({
+    default: module.AuthModalContainer,
+  })),
+);
 const CrokContainer = lazy(() =>
   import("@web-speed-hackathon-2026/client/src/containers/CrokContainer").then((module) => ({
     default: module.CrokContainer,
@@ -117,17 +121,24 @@ export const AppContainer = () => {
 
   const authModalId = useId();
   const newPostModalId = useId();
+  const [isAuthModalMounted, setIsAuthModalMounted] = useState(false);
   const [isNewPostModalMounted, setIsNewPostModalMounted] = useState(false);
   const [pendingDialogId, setPendingDialogId] = useState<string | null>(null);
 
   useEffect(() => {
     return addDialogOpenRequestListener((dialogId) => {
+      if (dialogId === authModalId) {
+        setIsAuthModalMounted(true);
+        setPendingDialogId(dialogId);
+        return;
+      }
+
       if (dialogId === newPostModalId) {
         setIsNewPostModalMounted(true);
         setPendingDialogId(dialogId);
       }
     });
-  }, [newPostModalId]);
+  }, [authModalId, newPostModalId]);
 
   useEffect(() => {
     if (activeUser != null) {
@@ -193,7 +204,9 @@ export const AppContainer = () => {
       </AppPage>
 
       <Suspense fallback={null}>
-        <AuthModalContainer id={authModalId} onUpdateActiveUser={setActiveUser} />
+        {isAuthModalMounted ? (
+          <AuthModalContainer id={authModalId} onUpdateActiveUser={setActiveUser} />
+        ) : null}
         {isNewPostModalMounted ? <NewPostModalContainer id={newPostModalId} /> : null}
       </Suspense>
     </>

@@ -9,8 +9,19 @@ interface ReturnValues<T> {
 declare global {
   interface Window {
     __INITIAL_POST__?: unknown;
+    __PREFETCH_JSON__?: Record<string, Promise<unknown> | undefined>;
     __INITIAL_USER__?: unknown;
   }
+}
+
+function consumePrefetch<T>(apiPath: string): Promise<T> | null {
+  const prefetched = window.__PREFETCH_JSON__?.[apiPath];
+  if (prefetched === undefined) {
+    return null;
+  }
+
+  delete window.__PREFETCH_JSON__?.[apiPath];
+  return prefetched as Promise<T>;
 }
 
 export function useFetch<T>(
@@ -46,7 +57,9 @@ export function useFetch<T>(
       isLoading: true,
     }));
 
-    void fetcher(apiPath).then(
+    const dataPromise = consumePrefetch<T>(apiPath) ?? fetcher(apiPath);
+
+    void dataPromise.then(
       (data) => {
         setResult((cur) => ({
           ...cur,
