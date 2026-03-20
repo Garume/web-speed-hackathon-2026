@@ -1,10 +1,43 @@
 import { Router } from "express";
-import { Op } from "sequelize";
+import { FindOptions, Includeable, Op, Order, WhereOptions } from "sequelize";
 
-import { Post } from "@web-speed-hackathon-2026/server/src/models";
+import { Post, User } from "@web-speed-hackathon-2026/server/src/models";
 import { parseSearchQuery } from "@web-speed-hackathon-2026/server/src/utils/parse_search_query.js";
 
 export const searchRouter = Router();
+
+function buildPostInclude(userWhere?: WhereOptions): Includeable[] {
+  return [
+    {
+      model: User.unscoped(),
+      as: "user",
+      attributes: ["id", "username", "name", "description", "createdAt"],
+      include: [{ association: "profileImage", attributes: ["id", "alt"] }],
+      required: true,
+      ...(userWhere == null ? {} : { where: userWhere }),
+    },
+    {
+      association: "images",
+      through: { attributes: [] },
+    },
+    { association: "movie" },
+    { association: "sound" },
+  ];
+}
+
+function buildPostQueryBase(): Pick<FindOptions, "attributes" | "include" | "order" | "subQuery"> {
+  return {
+    attributes: {
+      exclude: ["userId", "movieId", "soundId"],
+    },
+    include: buildPostInclude(),
+    order: [
+      ["id", "DESC"],
+      ["images", "createdAt", "ASC"],
+    ] as Order,
+    subQuery: false,
+  };
+}
 
 searchRouter.get("/search", async (req, res) => {
   const query = req.query["q"];
@@ -23,6 +56,8 @@ searchRouter.get("/search", async (req, res) => {
   const searchTerm = keywords ? `%${keywords}%` : null;
   const limit = req.query["limit"] != null ? Number(req.query["limit"]) : undefined;
   const offset = req.query["offset"] != null ? Number(req.query["offset"]) : undefined;
+  const pageWindow = (limit ?? 0) + (offset ?? 0);
+  const sourceLimit = limit != null ? Math.max(pageWindow * 5, limit) : undefined;
 
   // 日付条件を構築
   const dateConditions: Record<symbol, Date>[] = [];
@@ -38,9 +73,9 @@ searchRouter.get("/search", async (req, res) => {
   // テキスト検索条件
   const textWhere = searchTerm ? { text: { [Op.like]: searchTerm } } : {};
 
-  const postsByText = await Post.findAll({
-    limit,
-    offset,
+  const postsByText = await Post.unscoped().findAll({
+    ...buildPostQueryBase(),
+    limit: sourceLimit,
     where: {
       ...textWhere,
       ...dateWhere,
@@ -50,26 +85,12 @@ searchRouter.get("/search", async (req, res) => {
   // ユーザー名/名前での検索（キーワードがある場合のみ）
   let postsByUser: typeof postsByText = [];
   if (searchTerm) {
-    postsByUser = await Post.findAll({
-      include: [
-        {
-          association: "user",
-          attributes: { exclude: ["profileImageId"] },
-          include: [{ association: "profileImage" }],
-          required: true,
-          where: {
-            [Op.or]: [{ username: { [Op.like]: searchTerm } }, { name: { [Op.like]: searchTerm } }],
-          },
-        },
-        {
-          association: "images",
-          through: { attributes: [] },
-        },
-        { association: "movie" },
-        { association: "sound" },
-      ],
-      limit,
-      offset,
+    postsByUser = await Post.unscoped().findAll({
+      ...buildPostQueryBase(),
+      include: buildPostInclude({
+        [Op.or]: [{ username: { [Op.like]: searchTerm } }, { name: { [Op.like]: searchTerm } }],
+      }),
+      limit: sourceLimit,
       where: dateWhere,
     });
   }

@@ -8,22 +8,25 @@ import {
   addDialogOpenRequestListener,
   openDialog,
 } from "@web-speed-hackathon-2026/client/src/utils/dialog";
+const loadAuthModalContainer = () =>
+  import("@web-speed-hackathon-2026/client/src/containers/AuthModalContainer");
 const AuthModalContainer = lazy(() =>
-  import("@web-speed-hackathon-2026/client/src/containers/AuthModalContainer").then((module) => ({
+  loadAuthModalContainer().then((module) => ({
     default: module.AuthModalContainer,
   })),
 );
+const loadCrokContainer = () => import("@web-speed-hackathon-2026/client/src/containers/CrokContainer");
 const CrokContainer = lazy(() =>
-  import("@web-speed-hackathon-2026/client/src/containers/CrokContainer").then((module) => ({
+  loadCrokContainer().then((module) => ({
     default: module.CrokContainer,
   })),
 );
+const loadDirectMessageContainer = () =>
+  import("@web-speed-hackathon-2026/client/src/containers/DirectMessageContainer");
 const DirectMessageContainer = lazy(() =>
-  import("@web-speed-hackathon-2026/client/src/containers/DirectMessageContainer").then(
-    (module) => ({
-      default: module.DirectMessageContainer,
-    }),
-  ),
+  loadDirectMessageContainer().then((module) => ({
+    default: module.DirectMessageContainer,
+  })),
 );
 const DirectMessageListContainer = lazy(() =>
   import("@web-speed-hackathon-2026/client/src/containers/DirectMessageListContainer").then(
@@ -37,15 +40,16 @@ const NotFoundContainer = lazy(() =>
     default: module.NotFoundContainer,
   })),
 );
+const loadNewPostModalContainer = () =>
+  import("@web-speed-hackathon-2026/client/src/containers/NewPostModalContainer");
 const NewPostModalContainer = lazy(() =>
-  import("@web-speed-hackathon-2026/client/src/containers/NewPostModalContainer").then(
-    (module) => ({
-      default: module.NewPostModalContainer,
-    }),
-  ),
+  loadNewPostModalContainer().then((module) => ({
+    default: module.NewPostModalContainer,
+  })),
 );
+const loadPostContainer = () => import("@web-speed-hackathon-2026/client/src/containers/PostContainer");
 const PostContainer = lazy(() =>
-  import("@web-speed-hackathon-2026/client/src/containers/PostContainer").then((module) => ({
+  loadPostContainer().then((module) => ({
     default: module.PostContainer,
   })),
 );

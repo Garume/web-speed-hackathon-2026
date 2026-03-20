@@ -159,6 +159,8 @@ type Params = {
   targetName?: string;
 };
 
+const TARGET_COOLDOWN_MS = Number.parseInt(process.env["WSH_TARGET_DELAY_MS"] ?? "10000", 10);
+
 async function* _calculate({
   baseUrl,
   targets,
@@ -166,7 +168,7 @@ async function* _calculate({
   baseUrl: string;
   targets: Target[];
 }): AsyncGenerator<Result, void, void> {
-  for (const target of targets) {
+  for (const [index, target] of targets.entries()) {
     await using context = await createPage({
       device: target.device,
     });
@@ -184,8 +186,10 @@ async function* _calculate({
       yield { breakdown: [], error: err as Error, scoreX100: 0, target };
     }
 
-    // サーバー負荷が落ち着くまで、10秒待つ
-    await setTimeout(10 * 1000);
+    if (TARGET_COOLDOWN_MS > 0 && index < targets.length - 1) {
+      // サーバー負荷が落ち着くまで待つ
+      await setTimeout(TARGET_COOLDOWN_MS);
+    }
   }
 }
 

@@ -8,8 +8,6 @@ import { v4 as uuidv4 } from "uuid";
 
 import { UPLOAD_PATH } from "@web-speed-hackathon-2026/server/src/paths";
 import { extractMetadataFromSound } from "@web-speed-hackathon-2026/server/src/utils/extract_metadata_from_sound";
-
-const ACCEPTED_EXTENSIONS = new Set(["mp3", "wav"]);
 const EXTENSION = "mp3";
 
 function decodeSoundHeader(value: string | undefined): string | undefined {
@@ -35,7 +33,7 @@ soundRouter.post("/sounds", async (req, res) => {
   }
 
   const type = await fileTypeFromBuffer(req.body);
-  if (type === undefined || !ACCEPTED_EXTENSIONS.has(type.ext)) {
+  if (type === undefined || type.ext !== EXTENSION) {
     throw new httpErrors.BadRequest("Invalid file type");
   }
 

@@ -1,6 +1,30 @@
+type HttpError = Error & {
+  responseJSON?: unknown;
+  responseText?: string;
+  status: number;
+};
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new Error((await response.text()) || `Request failed with status ${response.status}`);
+    const contentType = response.headers.get("content-type") ?? "";
+
+    let responseJSON: unknown;
+    let responseText = "";
+    if (contentType.includes("application/json")) {
+      responseJSON = await response.json();
+      responseText =
+        typeof responseJSON === "string" ? responseJSON : JSON.stringify(responseJSON);
+    } else {
+      responseText = await response.text();
+    }
+
+    const error = new Error(
+      responseText || `Request failed with status ${response.status}`,
+    ) as HttpError;
+    error.status = response.status;
+    error.responseJSON = responseJSON;
+    error.responseText = responseText;
+    throw error;
   }
 
   if (response.status === 204) {

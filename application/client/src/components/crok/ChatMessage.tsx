@@ -1,4 +1,10 @@
-import { SimpleMarkdown } from "@web-speed-hackathon-2026/client/src/components/crok/SimpleMarkdown";
+import "katex/dist/katex.min.css";
+import Markdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+
+import { CodeBlock } from "@web-speed-hackathon-2026/client/src/components/crok/CodeBlock";
 import { TypingIndicator } from "@web-speed-hackathon-2026/client/src/components/crok/TypingIndicator";
 import { CrokLogo } from "@web-speed-hackathon-2026/client/src/components/foundation/CrokLogo";
 
@@ -24,8 +30,19 @@ const AssistantMessage = ({ content }: { content: string }) => {
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-cax-text mb-1 text-sm font-medium">Crok</div>
-        <div className="text-cax-text max-w-none">
-          {content ? <SimpleMarkdown content={content} /> : <TypingIndicator />}
+        <div className="markdown text-cax-text max-w-none">
+          {content ? (
+            <Markdown
+              components={{ pre: CodeBlock }}
+              key={content}
+              rehypePlugins={[rehypeKatex]}
+              remarkPlugins={[remarkMath, remarkGfm]}
+            >
+              {content}
+            </Markdown>
+          ) : (
+            <TypingIndicator />
+          )}
         </div>
       </div>
     </div>

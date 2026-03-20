@@ -1,6 +1,6 @@
 import { Router } from "express";
 import httpErrors from "http-errors";
-import { col, where, Op } from "sequelize";
+import { Op } from "sequelize";
 
 import { eventhub } from "@web-speed-hackathon-2026/server/src/eventhub";
 import {
@@ -10,6 +10,12 @@ import {
 } from "@web-speed-hackathon-2026/server/src/models";
 
 export const directMessageRouter = Router();
+const TYPING_INDICATOR_DURATION_MS = 10 * 1000;
+const typingByConversationAndUser = new Map<string, number>();
+
+function getTypingKey(conversationId: string, userId: string) {
+  return `${conversationId}:${userId}`;
+}
 
 function getOwnedConversationWhere(conversationId: string, userId: string) {
   return {
@@ -215,6 +221,17 @@ directMessageRouter.ws("/dm/:conversationId", async (req, _res) => {
   req.ws.on("close", () => {
     eventhub.off(`dm:conversation/${conversation.id}:typing/${peerId}`, handleTyping);
   });
+
+  const typingKey = getTypingKey(conversation.id, peerId);
+  const lastTypingAt = typingByConversationAndUser.get(typingKey);
+  if (lastTypingAt != null) {
+    const isTyping = Date.now() - lastTypingAt < TYPING_INDICATOR_DURATION_MS;
+    if (isTyping) {
+      eventhub.emit(`dm:conversation/${conversation.id}:typing/${peerId}`, {});
+    } else {
+      typingByConversationAndUser.delete(typingKey);
+    }
+  }
 });
 
 directMessageRouter.post("/dm/:conversationId/messages", async (req, res) => {
@@ -286,6 +303,10 @@ directMessageRouter.post("/dm/:conversationId/typing", async (req, res) => {
     throw new httpErrors.NotFound();
   }
 
+  typingByConversationAndUser.set(
+    getTypingKey(conversation.id, req.session.userId),
+    Date.now(),
+  );
   eventhub.emit(`dm:conversation/${conversation.id}:typing/${req.session.userId}`, {});
 
   return res.status(200).type("application/json").send({});

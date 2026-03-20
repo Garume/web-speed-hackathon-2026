@@ -11,6 +11,14 @@ export const InfiniteScroll = ({ children, fetchMore, items }: Props) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const maybeFetchMore = () => {
+      const documentHeight = document.documentElement.scrollHeight;
+      const viewportBottom = window.scrollY + window.innerHeight;
+      if (documentHeight - viewportBottom <= 300) {
+        fetchMore();
+      }
+    };
+
     const sentinel = sentinelRef.current;
     if (sentinel == null || latestItem === undefined) {
       return;
@@ -28,16 +36,19 @@ export const InfiniteScroll = ({ children, fetchMore, items }: Props) => {
     );
 
     observer.observe(sentinel);
+    maybeFetchMore();
+    window.addEventListener("scroll", maybeFetchMore, { passive: true });
 
     return () => {
       observer.disconnect();
+      window.removeEventListener("scroll", maybeFetchMore);
     };
   }, [latestItem, fetchMore]);
 
   return (
     <>
       {children}
-      <div ref={sentinelRef} />
+      <div aria-hidden="true" className="h-px w-full" ref={sentinelRef} />
     </>
   );
 };

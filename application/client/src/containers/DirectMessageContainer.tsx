@@ -18,6 +18,8 @@ interface DmTypingEvent {
   payload: {};
 }
 
+type OptimisticDirectMessage = Models.DirectMessage;
+
 const TYPING_INDICATOR_DURATION_MS = 10 * 1000;
 
 function mergeConversationMessage(
@@ -44,6 +46,21 @@ function mergeConversationMessage(
     ...conversation,
     messages: nextMessages,
   };
+}
+
+function createOptimisticMessage(body: string, activeUser: Models.User): OptimisticDirectMessage {
+  const now = new Date().toISOString();
+
+  return {
+    id: `optimistic:${crypto.randomUUID()}`,
+    body,
+    createdAt: now,
+    updatedAt: now,
+    isRead: false,
+    sender: {
+      id: activeUser.id,
+    } as Models.User,
+  } as Models.DirectMessage;
 }
 
 interface Props {
@@ -79,7 +96,7 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
 
   const [conversation, setConversation] = useState<Models.DirectMessageConversation | null>(null);
   const [conversationError, setConversationError] = useState<Error | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState<OptimisticDirectMessage[]>([]);
 
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const peerTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,6 +128,10 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
   }, [loadConversation]);
 
   useEffect(() => {
+    setPendingMessages([]);
+  }, [conversationId]);
+
+  useEffect(() => {
     if (activeUser == null || conversation == null) {
       return;
     }
@@ -128,7 +149,12 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
 
   const handleSubmit = useCallback(
     async (params: DirectMessageFormData) => {
-      setIsSubmitting(true);
+      if (activeUser == null) {
+        return;
+      }
+
+      const optimisticMessage = createOptimisticMessage(params.body, activeUser);
+      setPendingMessages((currentMessages) => [...currentMessages, optimisticMessage]);
       try {
         const message = await sendJSON<Models.DirectMessage>(
           `/api/v1/dm/${conversationId}/messages`,
@@ -136,14 +162,20 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
             body: params.body,
           },
         );
+        setPendingMessages((currentMessages) =>
+          currentMessages.filter(({ id }) => id !== optimisticMessage.id),
+        );
         setConversation((currentConversation) =>
           mergeConversationMessage(currentConversation, message),
         );
-      } finally {
-        setIsSubmitting(false);
+      } catch (error) {
+        setPendingMessages((currentMessages) =>
+          currentMessages.filter(({ id }) => id !== optimisticMessage.id),
+        );
+        throw error;
       }
     },
-    [conversationId],
+    [activeUser, conversationId],
   );
 
   const handleTyping = useCallback(async () => {
@@ -158,6 +190,18 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
 
   useWs(`/api/v1/dm/${conversationId}`, (event: DmUpdateEvent | DmTypingEvent) => {
     if (event.type === "dm:conversation:message") {
+      if (event.payload.sender.id === activeUser?.id) {
+        setPendingMessages((currentMessages) => {
+          const matchedMessageIndex = currentMessages.findIndex(
+            (message) => message.body === event.payload.body,
+          );
+          if (matchedMessageIndex === -1) {
+            return currentMessages;
+          }
+
+          return currentMessages.filter((_, index) => index !== matchedMessageIndex);
+        });
+      }
       setConversation((currentConversation) =>
         mergeConversationMessage(currentConversation, event.payload),
       );
@@ -205,6 +249,13 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
 
   const peer =
     conversation.initiator.id !== activeUser?.id ? conversation.initiator : conversation.member;
+  const renderConversation =
+    pendingMessages.length === 0
+      ? conversation
+      : {
+          ...conversation,
+          messages: [...conversation.messages, ...pendingMessages],
+        };
 
   return (
     <>
@@ -213,11 +264,10 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
       </Helmet>
       <DirectMessagePage
         conversationError={conversationError}
-        conversation={conversation}
+        conversation={renderConversation}
         activeUser={activeUser}
         onTyping={handleTyping}
         isPeerTyping={isPeerTyping}
-        isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
       />
     </>

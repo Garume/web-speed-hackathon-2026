@@ -15,6 +15,7 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 function parseArgs(argv) {
   const scoringArgs = [];
   let applicationUrl = "http://127.0.0.1:3000";
+  let fastMode = false;
   let keepServer = false;
   let shouldBuild = true;
 
@@ -28,6 +29,11 @@ function parseArgs(argv) {
 
     if (arg === "--keepServer" || arg === "--keep-server") {
       keepServer = true;
+      continue;
+    }
+
+    if (arg === "--fast") {
+      fastMode = true;
       continue;
     }
 
@@ -45,7 +51,7 @@ function parseArgs(argv) {
     scoringArgs.push(arg);
   }
 
-  return { applicationUrl, keepServer, scoringArgs, shouldBuild };
+  return { applicationUrl, fastMode, keepServer, scoringArgs, shouldBuild };
 }
 
 function spawnProcess(command, args, cwd) {
@@ -116,7 +122,13 @@ async function stopServer(serverProcess) {
 }
 
 async function main() {
-  const { applicationUrl, keepServer, scoringArgs, shouldBuild } = parseArgs(process.argv.slice(2));
+  const { applicationUrl, fastMode, keepServer, scoringArgs, shouldBuild } = parseArgs(
+    process.argv.slice(2),
+  );
+
+  if (fastMode) {
+    process.env.WSH_TARGET_DELAY_MS = "0";
+  }
 
   const finalScoringArgs = scoringArgs.includes("--applicationUrl")
     ? scoringArgs
