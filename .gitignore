@@ -223,3 +223,9 @@ application/upload/**
 
 # Personal Fly.io config for self-managed deployments
 fly.self.toml
+
+# Local performance/debug artifacts
+.tmp-*
+webpack-stats.json
+application/client/webpack-stats.json
+scoring-tool/home-lighthouse*.json
