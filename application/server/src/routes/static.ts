@@ -32,7 +32,7 @@ try {
 function getPostImageHint(post: any): string {
   const images = post.images;
   if (images && images.length > 0) {
-    return `<link rel="preload" href="/images/${images[0].id}.webp" as="image" type="image/webp" fetchpriority="high">`;
+    return `<link rel="preload" href="/images/${images[0].id}.jpg" as="image" fetchpriority="high">`;
   }
   return "";
 }
@@ -51,7 +51,7 @@ function getPostMediaHint(post: any): string {
 const hintsCache = new Map<string, { html: string; time: number }>();
 const CACHE_TTL = 60000; // 1 minute
 
-async function getPageInjections(reqPath: string): Promise<{ preloadHints: string; inlineData: string }> {
+async function getPageInjections(reqPath: string): Promise<{ preloadHints: string; inlineData: string; heroImage: string }> {
   const cached = hintsCache.get(reqPath);
   if (cached && Date.now() - cached.time < CACHE_TTL) {
     return JSON.parse(cached.html);
@@ -59,6 +59,7 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
 
   let preloadHints = "";
   let inlineData = "";
+  let heroImage = "";
 
   try {
     if (reqPath === "/") {
@@ -66,11 +67,13 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
       const posts = await Post.findAll({ limit: 10, offset: 0 });
       if (posts.length > 0) {
         inlineData = `<script>window.__INITIAL_POSTS__=${JSON.stringify(posts)};</script>`;
-        // Only preload images (not videos - too heavy, steals bandwidth from JS)
+        // Find first post with images for preload + hero image (LCP optimization)
         for (const post of posts) {
-          const hint = getPostImageHint(post);
-          if (hint) {
-            preloadHints += hint;
+          const images = (post as any).images;
+          if (images && images.length > 0) {
+            const imgId = images[0].id;
+            preloadHints += `<link rel="preload" href="/images/${imgId}.jpg" as="image" fetchpriority="high">`;
+            heroImage = `<img id="lcp-hero" src="/images/${imgId}.jpg" alt="" fetchpriority="high" loading="eager" decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;object-fit:cover;z-index:-1;pointer-events:none">`;
             break;
           }
         }
@@ -110,7 +113,7 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
     // Silently fail
   }
 
-  const result = { preloadHints, inlineData };
+  const result = { preloadHints, inlineData, heroImage };
   hintsCache.set(reqPath, { html: JSON.stringify(result), time: Date.now() });
   return result;
 }
@@ -130,13 +133,16 @@ staticRouter.use(async (req, res, next) => {
 
   // This is a SPA route - serve HTML with dynamic preload hints
   try {
-    const { preloadHints, inlineData } = await getPageInjections(req.path);
+    const { preloadHints, inlineData, heroImage } = await getPageInjections(req.path);
     let html = baseHtml;
     if (preloadHints) {
       html = html.replace("</head>", `${preloadHints}</head>`);
     }
     if (inlineData) {
       html = html.replace("<div id=\"app\">", `${inlineData}<div id="app">`);
+    }
+    if (heroImage) {
+      html = html.replace("<div id=\"app\">", `${heroImage}<div id="app">`);
     }
     res.setHeader("Content-Type", "text/html; charset=UTF-8");
     res.setHeader("Cache-Control", "no-cache");
