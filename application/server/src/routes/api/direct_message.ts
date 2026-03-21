@@ -10,11 +10,66 @@ import {
 } from "@web-speed-hackathon-2026/server/src/models";
 
 export const directMessageRouter = Router();
+const DM_DETAIL_PAGE_SIZE = 40;
 
 function getOwnedConversationWhere(conversationId: string, userId: string) {
   return {
     id: conversationId,
     [Op.or]: [{ initiatorId: userId }, { memberId: userId }],
+  };
+}
+
+async function getConversationMessagesPage(
+  conversationId: string,
+  limit = DM_DETAIL_PAGE_SIZE,
+  beforeMessageId?: string,
+) {
+  let beforeWhere:
+    | {
+        [Op.or]: [
+          { createdAt: { [Op.lt]: Date } },
+          { createdAt: Date; id: { [Op.lt]: string } },
+        ];
+      }
+    | undefined;
+
+  if (beforeMessageId != null) {
+    const cursorMessage = await DirectMessage.unscoped().findOne({
+      attributes: ["id", "createdAt"],
+      where: { conversationId, id: beforeMessageId },
+    });
+    if (cursorMessage == null) {
+      return { hasMoreBefore: false, messages: [] };
+    }
+
+    beforeWhere = {
+      [Op.or]: [
+        { createdAt: { [Op.lt]: cursorMessage.createdAt } },
+        { createdAt: cursorMessage.createdAt, id: { [Op.lt]: cursorMessage.id } },
+      ],
+    };
+  }
+
+  const rows = await DirectMessage.unscoped().findAll({
+    attributes: ["id", "body", "isRead", "createdAt", "updatedAt"],
+    include: [{ association: "sender", attributes: ["id"] }],
+    where: {
+      conversationId,
+      ...beforeWhere,
+    },
+    order: [
+      ["createdAt", "DESC"],
+      ["id", "DESC"],
+    ],
+    limit: limit + 1,
+  });
+
+  const hasMoreBefore = rows.length > limit;
+  const pageRows = hasMoreBefore ? rows.slice(0, limit) : rows;
+
+  return {
+    hasMoreBefore,
+    messages: pageRows.reverse().map((message) => message.toJSON()),
   };
 }
 
@@ -186,21 +241,47 @@ directMessageRouter.get("/dm/:conversationId", async (req, res) => {
         attributes: ["id", "name", "username"],
         include: [{ association: "profileImage", attributes: ["id", "alt"] }],
       },
-      {
-        association: "messages",
-        attributes: ["id", "body", "isRead", "createdAt", "updatedAt"],
-        include: [{ association: "sender", attributes: ["id"] }],
-        order: [["createdAt", "ASC"]],
-        required: false,
-        separate: true,
-      },
     ],
   });
   if (conversation === null) {
     throw new httpErrors.NotFound();
   }
 
-  return res.status(200).type("application/json").send(conversation);
+  const messagePage = await getConversationMessagesPage(conversation.id);
+
+  return res.status(200).type("application/json").send({
+    ...conversation.toJSON(),
+    hasMoreBefore: messagePage.hasMoreBefore,
+    messages: messagePage.messages,
+  });
+});
+
+directMessageRouter.get("/dm/:conversationId/messages", async (req, res) => {
+  if (req.session.userId === undefined) {
+    throw new httpErrors.Unauthorized();
+  }
+
+  const conversation = await DirectMessageConversation.unscoped().findOne({
+    attributes: ["id"],
+    where: getOwnedConversationWhere(req.params.conversationId, req.session.userId),
+  });
+  if (conversation == null) {
+    throw new httpErrors.NotFound();
+  }
+
+  const beforeMessageIdValue = req.query["beforeMessageId"];
+  const beforeMessageId =
+    typeof beforeMessageIdValue === "string" && beforeMessageIdValue.length > 0
+      ? beforeMessageIdValue
+      : undefined;
+
+  const messagePage = await getConversationMessagesPage(
+    conversation.id,
+    DM_DETAIL_PAGE_SIZE,
+    beforeMessageId,
+  );
+
+  return res.status(200).type("application/json").send(messagePage);
 });
 
 directMessageRouter.ws("/dm/:conversationId", async (req, _res) => {

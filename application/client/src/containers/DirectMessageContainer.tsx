@@ -18,6 +18,19 @@ interface DmTypingEvent {
   payload: {};
 }
 
+interface DirectMessagePageResponse {
+  hasMoreBefore?: boolean;
+  id: string;
+  initiator: Models.User;
+  member: Models.User;
+  messages: Models.DirectMessage[];
+}
+
+interface DirectMessageMessagesPageResponse {
+  hasMoreBefore: boolean;
+  messages: Models.DirectMessage[];
+}
+
 const TYPING_INDICATOR_DURATION_MS = 10 * 1000;
 
 function mergeConversationMessage(
@@ -101,6 +114,7 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
   const [conversation, setConversation] = useState<Models.DirectMessageConversation | null>(null);
   const [conversationError, setConversationError] = useState<Error | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingBefore, setIsLoadingBefore] = useState(false);
 
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const peerTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,10 +134,10 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
     }
 
     try {
-      const data = await fetchJSON<Models.DirectMessageConversation>(
+      const data = await fetchJSON<DirectMessagePageResponse>(
         `/api/v1/dm/${conversationId}`,
       );
-      setConversation(data);
+      setConversation(data as Models.DirectMessageConversation);
       setConversationError(null);
     } catch (error) {
       setConversation(null);
@@ -185,6 +199,37 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
     void sendJSON(`/api/v1/dm/${conversationId}/typing`, {});
   }, [conversationId]);
 
+  const handleLoadBefore = useCallback(async () => {
+    if (conversation == null || isLoadingBefore) {
+      return;
+    }
+
+    const oldestMessageId = conversation.messages[0]?.id;
+    if (oldestMessageId == null) {
+      return;
+    }
+
+    setIsLoadingBefore(true);
+    try {
+      const page = await fetchJSON<DirectMessageMessagesPageResponse>(
+        `/api/v1/dm/${conversationId}/messages?beforeMessageId=${encodeURIComponent(oldestMessageId)}`,
+      );
+      setConversation((currentConversation) => {
+        if (currentConversation == null) {
+          return currentConversation;
+        }
+
+        return {
+          ...currentConversation,
+          hasMoreBefore: page.hasMoreBefore,
+          messages: [...page.messages, ...currentConversation.messages],
+        };
+      });
+    } finally {
+      setIsLoadingBefore(false);
+    }
+  }, [conversation, conversationId, isLoadingBefore]);
+
   useWs(`/api/v1/dm/${conversationId}`, (event: DmUpdateEvent | DmTypingEvent) => {
     if (event.type === "dm:conversation:message") {
       setConversation((currentConversation) =>
@@ -230,9 +275,11 @@ export const DirectMessageContainer = ({ activeUser, authModalId }: Props) => {
       conversationError={conversationError}
       conversation={conversation}
       activeUser={activeUser}
+      isLoadingBefore={isLoadingBefore}
       onTyping={handleTyping}
       isPeerTyping={isPeerTyping}
       isSubmitting={isSubmitting}
+      onLoadBefore={handleLoadBefore}
       onSubmit={handleSubmit}
     />
   );

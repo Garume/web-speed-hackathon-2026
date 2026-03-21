@@ -19,13 +19,15 @@ interface Props {
   conversationError: Error | null;
   conversation: Models.DirectMessageConversation;
   activeUser: Models.User;
+  isLoadingBefore: boolean;
   isPeerTyping: boolean;
   isSubmitting: boolean;
+  onLoadBefore: () => void;
   onTyping: () => void;
   onSubmit: (params: DirectMessageFormData) => Promise<void>;
 }
 
-const INITIAL_VISIBLE_MESSAGE_COUNT = 40;
+const DM_DETAIL_PAGE_SIZE = 40;
 
 const DirectMessageHeader = memo(
   ({ peer }: { peer: Models.User }) => {
@@ -58,66 +60,54 @@ const DirectMessageHeader = memo(
 const DirectMessageList = memo(
   ({
     activeUser,
+    hasMoreBefore,
+    isLoadingBefore,
     isPeerTyping,
     messages,
+    onLoadBefore,
     peer,
   }: {
     activeUser: Models.User;
+    hasMoreBefore: boolean;
+    isLoadingBefore: boolean;
     isPeerTyping: boolean;
     messages: Models.DirectMessage[];
+    onLoadBefore: () => void;
     peer: Models.User;
   }) => {
-    const messageListRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
-    const [visibleStartIndex, setVisibleStartIndex] = useState(
-      Math.max(0, messages.length - INITIAL_VISIBLE_MESSAGE_COUNT),
-    );
-    const visibleMessages = messages.slice(visibleStartIndex);
-    const hiddenMessageCount = visibleStartIndex;
 
     useEffect(() => {
-      setVisibleStartIndex(Math.max(0, messages.length - INITIAL_VISIBLE_MESSAGE_COUNT));
-    }, [messages[0]?.id, peer.id]);
-
-    useEffect(() => {
-      setVisibleStartIndex((currentStartIndex) =>
-        currentStartIndex === 0 ? 0 : Math.max(0, messages.length - INITIAL_VISIBLE_MESSAGE_COUNT),
-      );
-    }, [messages.length]);
-
-    useEffect(() => {
-      if (messageListRef.current == null || bottomRef.current == null) {
+      if (bottomRef.current == null) {
         return;
       }
 
       bottomRef.current.scrollIntoView({ block: "end" });
-    }, [visibleMessages.length, isPeerTyping]);
+    }, [messages[messages.length - 1]?.id, isPeerTyping, peer.id]);
 
     return (
-      <div
-        className="bg-cax-surface-subtle flex-1 space-y-4 overflow-y-auto px-4 pt-4 pb-8"
-        ref={messageListRef}
-      >
+      <div className="bg-cax-surface-subtle flex-1 space-y-4 overflow-y-auto px-4 pt-4 pb-8">
         {messages.length === 0 && (
           <p className="text-cax-text-muted text-center text-sm">
             まだメッセージはありません。最初のメッセージを送信してみましょう。
           </p>
         )}
 
-        {hiddenMessageCount > 0 ? (
+        {hasMoreBefore && messages.length >= DM_DETAIL_PAGE_SIZE ? (
           <div className="flex justify-center">
             <button
               className="border-cax-border bg-cax-surface text-cax-text-muted hover:bg-cax-surface-raised rounded-full border px-4 py-2 text-sm"
-              onClick={() => setVisibleStartIndex(0)}
+              disabled={isLoadingBefore}
+              onClick={onLoadBefore}
               type="button"
             >
-              以前のメッセージを表示 ({hiddenMessageCount}件)
+              {isLoadingBefore ? "読込中..." : "以前のメッセージを表示"}
             </button>
           </div>
         ) : null}
 
         <ul className="grid gap-3" data-testid="dm-message-list">
-          {visibleMessages.map((message) => {
+          {messages.map((message) => {
             const isActiveUserSend = message.sender.id === activeUser.id;
 
             return (
@@ -156,6 +146,8 @@ const DirectMessageList = memo(
   },
   (prev, next) =>
     prev.activeUser.id === next.activeUser.id &&
+    prev.hasMoreBefore === next.hasMoreBefore &&
+    prev.isLoadingBefore === next.isLoadingBefore &&
     prev.isPeerTyping === next.isPeerTyping &&
     prev.peer.id === next.peer.id &&
     prev.messages === next.messages,
@@ -238,8 +230,10 @@ export const DirectMessagePage = ({
   conversationError,
   conversation,
   activeUser,
+  isLoadingBefore,
   isPeerTyping,
   isSubmitting,
+  onLoadBefore,
   onTyping,
   onSubmit,
 }: Props) => {
@@ -259,8 +253,11 @@ export const DirectMessagePage = ({
       <DirectMessageHeader peer={peer} />
       <DirectMessageList
         activeUser={activeUser}
+        hasMoreBefore={conversation.hasMoreBefore ?? false}
+        isLoadingBefore={isLoadingBefore}
         isPeerTyping={isPeerTyping}
         messages={conversation.messages}
+        onLoadBefore={onLoadBefore}
         peer={peer}
       />
 

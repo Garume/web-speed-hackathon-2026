@@ -527,3 +527,20 @@
   - `/terms` now serves prerendered body markup instead of an empty app root
   - the dedicated client entry hydrates existing terms markup instead of always doing a fresh client render
   - the terms screenshot check no longer waits on `document.fonts.check(...)`, which was brittle across environments and not needed because the screenshot itself remains the contract
+
+## 2026-03-21 20:20 JST
+
+### success: paginate older dm detail messages behind explicit load-before action
+
+- Task: carry the remaining DM-only optimization batch without touching unrelated media or terms code.
+- Key files: `application/server/src/routes/api/direct_message.ts`, `application/client/src/containers/DirectMessageContainer.tsx`, `application/client/src/components/direct_message/DirectMessagePage.tsx`, `application/client/types/models.d.ts`
+- Verification:
+  - `pnpm install`
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `pnpm test src/dm.test.ts`
+- Result:
+  - DM detail API now returns only the latest `40` messages on first load plus `hasMoreBefore`
+  - older messages are fetched via `/api/v1/dm/:conversationId/messages?beforeMessageId=...`
+  - the DM detail page shows an explicit `以前のメッセージを表示` control instead of rendering the full thread up front
+  - client state keeps message order stable and preserves the existing typing / send flow
