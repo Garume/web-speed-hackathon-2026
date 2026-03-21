@@ -331,3 +331,25 @@
   - kept current `main`'s HTML snapshot strategy, but added low-opacity hero images for `/` and scored photo post detail routes so LCP benefits land without reviving request-time DB work
   - full Playwright e2e/VRT passed against the initial baseline snapshots (`52/52`)
   - full local score reached `1045.80 / 1150.00`
+
+## 2026-03-22 01:35 JST
+
+### success: manually carry upstream e2e updates and official vrt samples
+
+- Task: bring in the latest `upstream/main` e2e/VRT updates without overwriting the current optimized app branch, and add both the official `vrt-samples` and the actual baseline snapshots used for Playwright VRT.
+- Key files: `application/e2e/.gitignore`, `application/e2e/src/auth.test.ts`, `application/e2e/src/crok-chat.test.ts`, `application/e2e/src/home.test.ts`, `application/e2e/src/post-detail.test.ts`, `application/e2e/src/posting.test.ts`, `application/e2e/src/responsive.test.ts`, `application/e2e/src/search.test.ts`, `application/e2e/src/terms.test.ts`, `application/e2e/src/utils.ts`, `application/e2e/vrt-samples/*`, `application/e2e/src/*-snapshots/*.png`
+- Verification:
+  - `pnpm install`
+  - `pnpm build`
+  - full Playwright run with `E2E_BASE_URL=http://127.0.0.1:3110` and `E2E_WORKERS=4`
+- Result:
+  - direct `git merge upstream/main` was not usable in this repo state because Git treated the histories as unrelated, so the upstream e2e update was carried in manually
+  - kept the current `playwright.config.ts` so `CHROME_PATH` support remains available
+  - upstream versions of `dm.test.ts` and `user-profile.test.ts` regressed the current verified suite, so those two files stayed on the known-good `d8a8339` versions while the rest of the upstream e2e update was kept
+  - official `application/e2e/vrt-samples` were added as reference images, and the actual Playwright baseline snapshots were copied back into `application/e2e/src/*-snapshots`
+  - basename coverage matched 1:1 between official samples and the current baseline after stripping the platform suffix
+  - notable size gaps versus the current baseline were observed on:
+    - `dm-DM一覧` (`282324` bytes official vs `226110` bytes current baseline)
+    - `terms-利用規約` (`1452042` bytes official vs `1076858` bytes current baseline)
+    - `user-profile-ユーザー詳細` (`148065` bytes official vs `221399` bytes current baseline)
+  - final full Playwright e2e/VRT passed (`52/52`)
