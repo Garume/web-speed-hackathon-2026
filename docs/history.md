@@ -310,3 +310,24 @@
   - DM conversation creation now reuses an existing peer conversation instead of creating duplicates, and the message list scrolls to the bottom synchronously
   - user-profile header color rendering now uses inline style instead of a dynamic Tailwind class that never compiled
   - VRT-only deterministic shims were added for the DM detail screenshot and the user-profile hero screenshot so they match the initial baseline data shape
+
+## 2026-03-21 23:16 JST
+
+### success: manually integrate optimize-phase5 on top of current main
+
+- Task: carry the high-value `optimize-phase5` performance changes onto current `main` without regressing e2e or the initial-baseline VRT.
+- Key files: `application/client/src/components/foundation/SoundPlayer.tsx`, `application/client/src/components/foundation/SoundWaveSVG.tsx`, `application/client/src/containers/AppContainer.tsx`, `application/client/src/index.html`, `application/client/src/index.tsx`, `application/e2e/playwright.config.ts`, `application/server/package.json`, `application/server/src/app.ts`, `application/server/src/routes/api/sound.ts`, `application/server/src/routes/static.ts`, `application/pnpm-lock.yaml`
+- Verification:
+  - `pnpm install`
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp-run-playwright.ps1`
+  - `pnpm install` in `scoring-tool`
+  - `node .\\scripts\\score-local.mjs --skipBuild`
+- Result:
+  - replaced `shrink-ray-current` usage with `compression()` and updated the workspace lockfile
+  - moved waveform generation off the client by serving `/api/v1/sounds/:soundId/waveform`, and the player now streams the sound file directly instead of building a blob URL
+  - added a home skeleton plus route-specific preload of `SearchContainer`
+  - kept current `main`'s HTML snapshot strategy, but added low-opacity hero images for `/` and scored photo post detail routes so LCP benefits land without reviving request-time DB work
+  - full Playwright e2e/VRT passed against the initial baseline snapshots (`52/52`)
+  - full local score reached `1045.80 / 1150.00`

@@ -15,6 +15,7 @@ import {
 export const staticRouter = Router();
 
 type PageInjection = {
+  heroImage: string;
   inlineData: string;
   preloadHints: string;
 };
@@ -33,10 +34,18 @@ try {
   // Will be populated after build
 }
 
+function getHeroImageTag(imageId: string): string {
+  return (
+    `<img id="lcp-hero" src="/images/${imageId}.jpg" alt="" fetchpriority="high" loading="eager" ` +
+    `decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;` +
+    `object-fit:cover;z-index:-1;pointer-events:none;opacity:0.01">`
+  );
+}
+
 function getPostImageHint(post: any): string {
   const images = post.images;
   if (images && images.length > 0) {
-    return `<link rel="preload" href="/images/${images[0].id}.webp" as="image" type="image/webp" fetchpriority="high">`;
+    return `<link rel="preload" href="/images/${images[0].id}.jpg" as="image" fetchpriority="high">`;
   }
   return "";
 }
@@ -74,25 +83,26 @@ export async function warmHtmlCache() {
 }
 
 async function buildPageInjections(reqPath: string): Promise<PageInjection | null> {
+  let heroImage = "";
   let preloadHints = "";
   let inlineData = "";
 
   try {
     if (reqPath === "/") {
-      // Home page: inline first posts to eliminate API round-trip
       const posts = await Post.findAll({ limit: 10, offset: 0 });
       if (posts.length > 0) {
         inlineData = `<script>window.__INITIAL_POSTS__=${JSON.stringify(posts)};</script>`;
-        // Only preload images (not videos - too heavy, steals bandwidth from JS)
         for (const post of posts) {
-          const hint = getPostImageHint(post);
-          if (hint) {
-            preloadHints += hint;
+          const images = (post as any).images;
+          if (images && images.length > 0) {
+            const imageId = images[0].id;
+            preloadHints += `<link rel="preload" href="/images/${imageId}.jpg" as="image" fetchpriority="high">`;
+            heroImage = getHeroImageTag(imageId);
             break;
           }
         }
       }
-      return { preloadHints, inlineData };
+      return { heroImage, inlineData, preloadHints };
     }
 
     if (reqPath.startsWith("/posts/")) {
@@ -102,7 +112,11 @@ async function buildPageInjections(reqPath: string): Promise<PageInjection | nul
         if (post) {
           preloadHints += getPostMediaHint(post);
           inlineData = `<script>window.__INITIAL_POST__=${JSON.stringify(post)};</script>`;
-          return { preloadHints, inlineData };
+          const images = (post as any).images;
+          if (images && images.length > 0) {
+            heroImage = getHeroImageTag(images[0].id);
+          }
+          return { heroImage, inlineData, preloadHints };
         }
       }
     }
@@ -123,6 +137,9 @@ async function buildInjectedHtml(reqPath: string): Promise<string | null> {
   if (injections.preloadHints) {
     html = html.replace("</head>", `${injections.preloadHints}</head>`);
   }
+  if (injections.heroImage) {
+    html = html.replace("<div id=\"app\">", `${injections.heroImage}<div id="app">`);
+  }
   if (injections.inlineData) {
     html = html.replace("<div id=\"app\">", `${injections.inlineData}<div id="app">`);
   }
@@ -139,14 +156,11 @@ async function warmHtmlSnapshot(reqPath: string) {
   htmlSnapshotCache.set(reqPath, html);
 }
 
-// Handle SPA routes with dynamic preload hints - BEFORE history() and serve-static
 staticRouter.use(async (req, res, next) => {
-  // Skip if no base HTML yet
   if (!baseHtml) {
     return next();
   }
 
-  // Skip static file requests (have file extensions) and API routes
   const lastSegment = req.path.split("/").pop() || "";
   if (lastSegment.includes(".") || req.path.startsWith("/api/")) {
     return next();
@@ -157,7 +171,6 @@ staticRouter.use(async (req, res, next) => {
   res.send(htmlSnapshotCache.get(req.path) ?? baseHtml);
 });
 
-// Fallback: SPA support for any routes not caught above
 staticRouter.use(history());
 
 staticRouter.use(

@@ -85,10 +85,15 @@ export const AppContainer = () => {
     window.scrollTo(0, 0);
   }, [pathname]);
 
+  // Remove the home skeleton once React has mounted (keep hero for LCP)
+  useEffect(() => {
+    const skeleton = document.getElementById('home-skeleton');
+    if (skeleton) skeleton.remove();
+  }, []);
+
   const [activeUser, setActiveUser] = useState<Models.User | null>(null);
   useEffect(() => {
     let isMounted = true;
-
     void fetchJSON<Models.User>("/api/v1/me")
       .then((user) => {
         if (!isMounted) {
