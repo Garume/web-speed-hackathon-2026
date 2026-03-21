@@ -73,7 +73,7 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
           if (images && images.length > 0) {
             const imgId = images[0].id;
             preloadHints += `<link rel="preload" href="/images/${imgId}.jpg" as="image" fetchpriority="high">`;
-            heroImage = `<img id="lcp-hero" src="/images/${imgId}.jpg" alt="" fetchpriority="high" loading="eager" decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;object-fit:cover;z-index:-1;pointer-events:none">`;
+            heroImage = `<img id="lcp-hero" src="/images/${imgId}.jpg" alt="" fetchpriority="high" loading="eager" decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;object-fit:cover;z-index:-1;pointer-events:none;opacity:0.01">`;
             break;
           }
         }
@@ -89,7 +89,7 @@ async function getPageInjections(reqPath: string): Promise<{ preloadHints: strin
           const postImages = (post as any).images;
           if (postImages && postImages.length > 0) {
             const imgId = postImages[0].id;
-            heroImage = `<img id="lcp-hero" src="/images/${imgId}.jpg" alt="" fetchpriority="high" loading="eager" decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;object-fit:cover;z-index:-1;pointer-events:none">`;
+            heroImage = `<img id="lcp-hero" src="/images/${imgId}.jpg" alt="" fetchpriority="high" loading="eager" decoding="async" style="position:fixed;top:0;left:0;width:100vw;height:56.25vw;max-height:50vh;object-fit:cover;z-index:-1;pointer-events:none;opacity:0.01">`;
           }
         }
       }
