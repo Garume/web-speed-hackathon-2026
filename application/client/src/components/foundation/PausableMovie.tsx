@@ -29,6 +29,26 @@ export const PausableMovie = ({ interactive = true, src }: Props) => {
     }
   }, [interactive, useGifFallback]);
 
+  if (!interactive) {
+    return (
+      <AspectRatioBox aspectHeight={1} aspectWidth={1}>
+        <button
+          aria-label="動画プレイヤー"
+          className="pointer-events-none relative block h-full w-full"
+          tabIndex={-1}
+          type="button"
+        >
+          <canvas
+            aria-hidden="true"
+            className="h-full w-full object-cover"
+            height={1080}
+            width={1080}
+          />
+        </button>
+      </AspectRatioBox>
+    );
+  }
+
   const media = useGifFallback ? (
     <img alt="" className="h-full w-full object-cover" draggable={false} src={src} />
   ) : (

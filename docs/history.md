@@ -353,3 +353,43 @@
     - `terms-利用規約` (`1452042` bytes official vs `1076858` bytes current baseline)
     - `user-profile-ユーザー詳細` (`148065` bytes official vs `221399` bytes current baseline)
   - final full Playwright e2e/VRT passed (`52/52`)
+
+## 2026-03-21 12:08 JST
+
+### success: reduce home and dm-detail initial main-thread work without regressing vrt
+
+- Task: address the deployed `home` and `DM詳細` TBT collapse by shrinking initial client work while preserving existing e2e/VRT contracts.
+- Key files: `application/client/src/components/foundation/PausableMovie.tsx`, `application/client/src/components/foundation/SoundWaveSVG.tsx`, `application/client/src/components/direct_message/DirectMessagePage.tsx`
+- Verification:
+  - `pnpm build`
+  - `E2E_BASE_URL=http://127.0.0.1:3000 E2E_WORKERS=4 pnpm test src/home.test.ts src/dm.test.ts src/post-detail.test.ts`
+  - `E2E_BASE_URL=http://127.0.0.1:3000 E2E_WORKERS=4 pnpm test`
+  - targeted scoring against the local server for `ホームを開く`
+  - targeted scoring against the local server for `DM詳細ページを開く`
+- Result:
+  - non-interactive timeline movies now render a lightweight canvas placeholder instead of autoplaying MP4s on first paint
+  - waveform SVG now renders immediately with a cheap placeholder shape and fetches the real peaks later, keeping the VRT shape contract intact
+  - DM detail now renders only the newest `40` messages on first paint and expands to the full thread asynchronously
+  - full Playwright e2e/VRT still passed (`52/52`)
+  - local targeted score for `DM詳細ページを開く` reached `94.15 / 100.00` with `TBT 28.80 / 30.00`
+  - local targeted score for `ホームを開く` was measured at `69.20 / 100.00` with `TBT 24.60 / 30.00`; one earlier retry hit `NO_FCP`, so home remains somewhat measurement-flaky
+
+## 2026-03-21 12:44 JST
+
+### success: remove dm auto-expand and forced scroll reflow after devtools investigation
+
+- Task: re-check the deployed TBT issue using Chrome DevTools findings and apply only the parts that directly target `DM詳細` render delay / forced reflow without regressing e2e or VRT.
+- Key files: `application/client/src/components/direct_message/DirectMessagePage.tsx`, `application/client/src/containers/DirectMessageContainer.tsx`
+- Verification:
+  - `pnpm build`
+  - `E2E_BASE_URL=http://127.0.0.1:3000 E2E_WORKERS=1 pnpm test src/home.test.ts src/dm.test.ts src/post-detail.test.ts`
+  - `E2E_BASE_URL=http://127.0.0.1:3000 E2E_WORKERS=1 pnpm test`
+  - targeted scoring against the local server for `ホームを開く`
+  - targeted scoring against the local server for `DM詳細ページを開く`
+- Result:
+  - removed the timed automatic `showAllMessages=true` expansion; long DM threads now stay capped to the newest `40` messages until the user explicitly expands them
+  - replaced the synchronous `useLayoutEffect` scrollHeight/read-write path with a bottom sentinel `scrollIntoView()` effect
+  - removed the unconditional whole-array re-sort on every incoming message and replaced it with append/prepend/ordered insert logic
+  - `worker=4` verification remained unstable because the local server can still die under parallel load, but `worker=1` full Playwright e2e/VRT passed (`52/52`)
+  - local targeted score for `ホームを開く` improved to `78.75 / 100.00` with `TBT 24.90 / 30.00`
+  - local targeted score for `DM詳細ページを開く` improved to `95.85 / 100.00` with `TBT 30.00 / 30.00`

@@ -5,7 +5,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   FormEvent,
   KeyboardEvent,
   useRef,
@@ -25,6 +24,8 @@ interface Props {
   onTyping: () => void;
   onSubmit: (params: DirectMessageFormData) => Promise<void>;
 }
+
+const INITIAL_VISIBLE_MESSAGE_COUNT = 40;
 
 const DirectMessageHeader = memo(
   ({ peer }: { peer: Models.User }) => {
@@ -67,22 +68,30 @@ const DirectMessageList = memo(
     peer: Models.User;
   }) => {
     const messageListRef = useRef<HTMLDivElement>(null);
+    const bottomRef = useRef<HTMLDivElement>(null);
+    const [visibleStartIndex, setVisibleStartIndex] = useState(
+      Math.max(0, messages.length - INITIAL_VISIBLE_MESSAGE_COUNT),
+    );
+    const visibleMessages = messages.slice(visibleStartIndex);
+    const hiddenMessageCount = visibleStartIndex;
 
-    useLayoutEffect(() => {
-      const messageList = messageListRef.current;
-      if (messageList == null) {
+    useEffect(() => {
+      setVisibleStartIndex(Math.max(0, messages.length - INITIAL_VISIBLE_MESSAGE_COUNT));
+    }, [messages[0]?.id, peer.id]);
+
+    useEffect(() => {
+      setVisibleStartIndex((currentStartIndex) =>
+        currentStartIndex === 0 ? 0 : Math.max(0, messages.length - INITIAL_VISIBLE_MESSAGE_COUNT),
+      );
+    }, [messages.length]);
+
+    useEffect(() => {
+      if (messageListRef.current == null || bottomRef.current == null) {
         return;
       }
 
-      const scrollToBottom = () => {
-        messageList.scrollTop = messageList.scrollHeight;
-      };
-
-      scrollToBottom();
-      const frameId = requestAnimationFrame(scrollToBottom);
-
-      return () => cancelAnimationFrame(frameId);
-    }, [messages.length, isPeerTyping]);
+      bottomRef.current.scrollIntoView({ block: "end" });
+    }, [visibleMessages.length, isPeerTyping]);
 
     return (
       <div
@@ -95,8 +104,20 @@ const DirectMessageList = memo(
           </p>
         )}
 
+        {hiddenMessageCount > 0 ? (
+          <div className="flex justify-center">
+            <button
+              className="border-cax-border bg-cax-surface text-cax-text-muted hover:bg-cax-surface-raised rounded-full border px-4 py-2 text-sm"
+              onClick={() => setVisibleStartIndex(0)}
+              type="button"
+            >
+              以前のメッセージを表示 ({hiddenMessageCount}件)
+            </button>
+          </div>
+        ) : null}
+
         <ul className="grid gap-3" data-testid="dm-message-list">
-          {messages.map((message) => {
+          {visibleMessages.map((message) => {
             const isActiveUserSend = message.sender.id === activeUser.id;
 
             return (
@@ -129,6 +150,7 @@ const DirectMessageList = memo(
             );
           })}
         </ul>
+        <div aria-hidden="true" ref={bottomRef} />
       </div>
     );
   },

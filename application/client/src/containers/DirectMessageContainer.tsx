@@ -29,16 +29,37 @@ function mergeConversationMessage(
   }
 
   const existingIndex = conversation.messages.findIndex(({ id }) => id === message.id);
-  const nextMessages =
-    existingIndex === -1
-      ? [...conversation.messages, message]
-      : conversation.messages.map((currentMessage, index) =>
-          index === existingIndex ? message : currentMessage,
-        );
+  let nextMessages = conversation.messages;
 
-  nextMessages.sort(
-    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
-  );
+  if (existingIndex !== -1) {
+    nextMessages = conversation.messages.map((currentMessage, index) =>
+      index === existingIndex ? message : currentMessage,
+    );
+  } else if (conversation.messages.length === 0) {
+    nextMessages = [message];
+  } else {
+    const nextCreatedAt = new Date(message.createdAt).getTime();
+    const firstCreatedAt = new Date(conversation.messages[0]!.createdAt).getTime();
+    const lastCreatedAt = new Date(
+      conversation.messages[conversation.messages.length - 1]!.createdAt,
+    ).getTime();
+
+    if (nextCreatedAt <= firstCreatedAt) {
+      nextMessages = [message, ...conversation.messages];
+    } else if (nextCreatedAt >= lastCreatedAt) {
+      nextMessages = [...conversation.messages, message];
+    } else {
+      const insertIndex = conversation.messages.findIndex(
+        (currentMessage) => new Date(currentMessage.createdAt).getTime() > nextCreatedAt,
+      );
+
+      nextMessages = [
+        ...conversation.messages.slice(0, insertIndex),
+        message,
+        ...conversation.messages.slice(insertIndex),
+      ];
+    }
+  }
 
   return {
     ...conversation,
