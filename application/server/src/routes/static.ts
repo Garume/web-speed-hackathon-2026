@@ -4,8 +4,6 @@ import path from "node:path";
 import history from "connect-history-api-fallback";
 import type { Request, Response } from "express";
 import { Router } from "express";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import serveStatic from "serve-static";
 
 import { Post } from "@web-speed-hackathon-2026/server/src/models";
@@ -14,7 +12,6 @@ import {
   PUBLIC_PATH,
   UPLOAD_PATH,
 } from "@web-speed-hackathon-2026/server/src/paths";
-import { TermsStaticApp } from "@web-speed-hackathon-2026/server/src/utils/TermsStaticApp";
 
 export const staticRouter = Router();
 
@@ -40,37 +37,7 @@ try {
 
 let termsHtml = "";
 try {
-  const staticTermsApp = renderToStaticMarkup(createElement(TermsStaticApp));
-  termsHtml =
-    `<!doctype html><html lang="ja"><head><meta charset="UTF-8">` +
-    `<meta name="viewport" content="width=device-width, initial-scale=1.0">` +
-    `<meta name="theme-color" content="#f5f5f4"><meta name="description" content="Web Speed Hackathon 2026">` +
-    `<title>利用規約 - CaX</title>` +
-    `<style>` +
-    `@font-face{font-family:"Rei no Are Mincho";font-display:block;src:url(/fonts/ReiNoAreMincho-Regular.woff2) format("woff2"),url(/fonts/ReiNoAreMincho-Regular.otf) format("opentype");font-weight:400;}` +
-    `@font-face{font-family:"Rei no Are Mincho";font-display:block;src:url(/fonts/ReiNoAreMincho-Heavy.woff2) format("woff2"),url(/fonts/ReiNoAreMincho-Heavy.otf) format("opentype");font-weight:700;}` +
-    `*{box-sizing:border-box}body{margin:0;background:#f5f5f4;color:#042f2e;font-family:ui-sans-serif,system-ui,sans-serif}` +
-    `a{text-decoration:none;color:inherit}ul{margin:0;padding:0;list-style:none}` +
-    `.terms-layout{position:relative;z-index:0;display:flex;justify-content:center;font-family:ui-sans-serif,system-ui,sans-serif}` +
-    `.terms-frame{display:flex;min-height:100vh;max-width:100%;background:#fff;color:#042f2e}` +
-    `.terms-aside{position:relative;z-index:10}` +
-    `.terms-nav{position:fixed;right:0;bottom:0;left:0;z-index:10;height:48px;border-top:1px solid #d6d3d1;background:#fff}` +
-    `.terms-nav-inner{position:relative;display:grid;grid-auto-flow:column;align-items:center;justify-content:space-evenly}` +
-    `.terms-nav-list{display:grid;grid-auto-flow:column;align-items:center;justify-content:space-evenly;width:100%}` +
-    `.terms-nav-link,.terms-nav-button{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:9999px;border:0;background:transparent;color:inherit;padding:0;cursor:pointer}` +
-    `.terms-nav-link.is-active{color:#0f766e}.terms-nav-icon{position:relative;font-size:20px}.terms-nav-label{display:none}` +
-    `.terms-main{position:relative;z-index:0;width:100vw;max-width:640px;min-width:0;flex-shrink:1;padding-bottom:48px}` +
-    `.terms-page article{padding:0 8px 64px;line-height:1.625}.terms-page h1,.terms-page h2{font-family:"Rei no Are Mincho",serif;line-height:normal;font-weight:700}` +
-    `.terms-page h1{margin:16px 0 8px;font-size:30px}.terms-page h2{margin:16px 0 8px;font-size:24px}` +
-    `.terms-page p{margin:16px 0}.terms-page ol{margin:0;padding-left:32px;list-style:decimal}.terms-page li{margin:0}` +
-    `.terms-page p.text-right{text-align:right}` +
-    `@media (min-width:768px){.terms-page article{padding:8px 16px 64px}}` +
-    `@media (min-width:640px){.terms-nav-link,.terms-nav-button{width:96px;height:auto;border-radius:0.125rem;padding:0 8px}.terms-nav-label{display:inline;font-size:14px}.terms-nav-icon{font-size:20px}}` +
-    `@media (min-width:1024px){.terms-nav{position:relative;right:auto;bottom:auto;left:auto;width:192px;height:100%;border-top:0;border-right:1px solid #d6d3d1}` +
-    `.terms-nav-inner{position:fixed;display:flex;flex-direction:column;justify-content:space-between;height:100%;width:192px;padding:8px}` +
-    `.terms-nav-list{grid-auto-flow:row;justify-content:start;gap:8px}.terms-nav-link,.terms-nav-button{flex-direction:row;justify-content:flex-start;width:auto;height:auto;border-radius:9999px;padding:8px 16px}` +
-    `.terms-nav-label{font-size:20px;font-weight:700}.terms-nav-icon{font-size:30px;padding-right:8px}.terms-main{padding-bottom:0}}` +
-    `</style></head><body><div id="app">${staticTermsApp}</div></body></html>`;
+  termsHtml = fs.readFileSync(path.join(CLIENT_DIST_PATH, "terms.html"), "utf8");
 } catch {
   // Will be populated after build
 }
@@ -198,8 +165,14 @@ async function warmHtmlSnapshot(reqPath: string) {
 }
 
 function sendTermsHtml(_req: Request, res: Response) {
+  const html = termsHtml || baseHtml;
+  if (!html) {
+    res.status(503).end();
+    return;
+  }
+
   res.setHeader("Cache-Control", "no-cache");
-  res.type("text/html; charset=UTF-8").send(termsHtml);
+  res.type("text/html; charset=UTF-8").send(html);
 }
 
 staticRouter.get("/terms", sendTermsHtml);
@@ -237,7 +210,8 @@ staticRouter.use(
 staticRouter.use(
   serveStatic(CLIENT_DIST_PATH, {
     setHeaders: (res, filePath) => {
-      if (path.basename(filePath) === "index.html") {
+      const basename = path.basename(filePath);
+      if (basename === "index.html" || basename === "terms.html") {
         res.setHeader("Cache-Control", "no-cache");
         return;
       }

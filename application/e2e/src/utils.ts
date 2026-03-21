@@ -43,15 +43,20 @@ export async function waitForVisibleMedia(page: Page): Promise<void> {
           (img as HTMLImageElement).naturalWidth > 0 && (img as HTMLImageElement).naturalHeight > 0,
       );
 
-      // ビューポート内の動画コンテナに canvas または video が出現しているか
+      // ビューポート内の動画コンテナに実際の再生メディアが出現しているか
       const movieAreas = Array.from(document.querySelectorAll("main [data-movie-area]")).filter(
         isInViewport,
       );
       const moviesReady = movieAreas.every((area) => {
-        const canvas = area.querySelector("canvas");
         const video = area.querySelector("video");
-        if (canvas) return canvas.width > 0 && canvas.height > 0;
+        const image = area.querySelector("img");
         if (video) return (video as HTMLVideoElement).readyState >= 1;
+        if (image) {
+          return (
+            (image as HTMLImageElement).naturalWidth > 0 &&
+            (image as HTMLImageElement).naturalHeight > 0
+          );
+        }
         return false;
       });
 

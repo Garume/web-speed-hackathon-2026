@@ -436,3 +436,20 @@
   - targeted Playwright for `src/terms.test.ts` failed on screenshot comparison
   - received image height was `4807px` vs expected `4695px`
   - visual diff remained `329503` pixels (`ratio 0.04`)
+
+## 2026-03-21 16:25 JST
+
+### success: restore regulation-aligned home media and terms visuals
+
+- Task: recover the manual-test and VRT expectations for home autoplay, sound waveform rendering, and `/terms` visual parity after the earlier custom static terms page diverged.
+- Key files: `application/client/src/components/foundation/PausableMovie.tsx`, `application/client/src/components/foundation/SoundWaveSVG.tsx`, `application/e2e/src/home.test.ts`, `application/e2e/src/utils.ts`, `application/server/src/routes/static.ts`, `application/client/src/terms.html`, `application/client/src/terms.tsx`
+- Verification:
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `PORT=3100 pnpm start`
+  - `E2E_BASE_URL=http://localhost:3100 pnpm test src/home.test.ts src/terms.test.ts`
+- Result:
+  - home timeline videos are rendered as actual autoplaying `<video>` elements once they enter the viewport instead of a permanent placeholder
+  - sound waveforms fetch and render real waveform bars again instead of the synthetic placeholder state
+  - `/terms` now serves the dedicated built `terms.html` entry instead of the hand-authored static HTML shell, which restored the baseline screenshot match
+  - targeted Playwright for `home` and `terms` passed (`9/9`)

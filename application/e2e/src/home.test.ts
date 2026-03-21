@@ -28,16 +28,27 @@ test.describe("ホーム", () => {
   });
 
   test("動画が自動再生される", async ({ page }) => {
-    const videoPlayer = page.locator('article button[aria-label="動画プレイヤー"]').first();
-
     await waitForVisibleMedia(page);
-
-    await expect(videoPlayer).toBeVisible({ timeout: 30_000 });
+    const video = page.locator("article [data-movie-area] video").first();
+    await expect(video).toBeVisible({ timeout: 30_000 });
+    await expect(async () => {
+      expect(
+        await video.evaluate((el) => {
+          if (!(el instanceof HTMLVideoElement)) {
+            return false;
+          }
+          return !el.paused && el.readyState >= 2;
+        }),
+      ).toBe(true);
+    }).toPass({ timeout: 30_000 });
   });
 
   test("音声の波形が表示される", async ({ page }) => {
     const waveform = page.locator('svg[viewBox="0 0 100 1"]').first();
     await expect(waveform).toBeVisible({ timeout: 30_000 });
+    await expect(async () => {
+      expect(await waveform.locator("rect").count()).toBeGreaterThan(0);
+    }).toPass({ timeout: 30_000 });
   });
 
   test("写真が枠を覆う形で拡縮している", async ({ page }) => {

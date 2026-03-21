@@ -25,8 +25,6 @@
     "file-type": "21.1.1",
     "http-errors": "2.0.0",
     "music-metadata": "11.10.3",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
     "sequelize": "6.37.7",
     "serve-static": "2.2.0",
     "shrink-ray-current": "^4.0.1",
@@ -44,8 +42,6 @@
     "@types/express-session": "1.18.2",
     "@types/http-errors": "2.0.5",
     "@types/node": "22.18.8",
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.1",
     "@types/serve-static": "1.15.9",
     "@types/ws": "8.18.1",
     "typescript": "5.9.3"

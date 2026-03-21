@@ -11,30 +11,19 @@ interface Props {
 
 export const SoundWaveSVG = ({ soundId }: Props) => {
   const uniqueIdRef = useRef(Math.random().toString(16));
-  const [{ max, peaks }, setPeaks] = useState<ParsedData>({
-    max: 1,
-    peaks: Array.from({ length: 100 }, (_, idx) => {
-      const cycle = idx % 12;
-      return cycle === 0 || cycle === 11 ? 0.18 : cycle < 4 || cycle > 8 ? 0.36 : 0.62;
-    }),
-  });
+  const [{ max, peaks }, setPeaks] = useState<ParsedData>({ max: 0, peaks: [] });
 
   useEffect(() => {
-    let cancelled = false;
-    // Defer waveform loading until after the first paint settles.
-    const timer = setTimeout(() => {
-      fetch(`/api/v1/sounds/${soundId}/waveform`)
-        .then((r) => r.json())
-        .then((data: ParsedData) => {
-          if (!cancelled) {
-            setPeaks(data);
-          }
-        })
-        .catch(() => {});
-    }, 2500);
+    const controller = new AbortController();
+    fetch(`/api/v1/sounds/${soundId}/waveform`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data: ParsedData) => {
+        setPeaks(data);
+      })
+      .catch(() => {});
+
     return () => {
-      cancelled = true;
-      clearTimeout(timer);
+      controller.abort();
     };
   }, [soundId]);
 

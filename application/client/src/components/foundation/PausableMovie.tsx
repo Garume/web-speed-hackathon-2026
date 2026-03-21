@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AspectRatioBox } from "@web-speed-hackathon-2026/client/src/components/foundation/AspectRatioBox";
 import { FontAwesomeIcon } from "@web-speed-hackathon-2026/client/src/components/foundation/FontAwesomeIcon";
@@ -11,9 +11,37 @@ interface Props {
 
 export const PausableMovie = ({ interactive = true, src }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLButtonElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [useGifFallback, setUseGifFallback] = useState(false);
+  const [shouldRenderMedia, setShouldRenderMedia] = useState(interactive);
   const mp4Src = src.replace(/\.gif$/, ".mp4");
+
+  useEffect(() => {
+    if (interactive) {
+      setShouldRenderMedia(true);
+      return;
+    }
+
+    const element = containerRef.current;
+    if (element === null || typeof IntersectionObserver === "undefined") {
+      setShouldRenderMedia(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setShouldRenderMedia(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [interactive]);
 
   const handleClick = useCallback(() => {
     if (!interactive || useGifFallback) {
@@ -29,28 +57,15 @@ export const PausableMovie = ({ interactive = true, src }: Props) => {
     }
   }, [interactive, useGifFallback]);
 
-  if (!interactive) {
-    return (
-      <AspectRatioBox aspectHeight={1} aspectWidth={1}>
-        <button
-          aria-label="動画プレイヤー"
-          className="pointer-events-none relative block h-full w-full"
-          tabIndex={-1}
-          type="button"
-        >
-          <canvas
-            aria-hidden="true"
-            className="h-full w-full object-cover"
-            height={1080}
-            width={1080}
-          />
-        </button>
-      </AspectRatioBox>
-    );
-  }
-
   const media = useGifFallback ? (
     <img alt="" className="h-full w-full object-cover" draggable={false} src={src} />
+  ) : !shouldRenderMedia ? (
+    <canvas
+      aria-hidden="true"
+      className="h-full w-full object-cover"
+      height={1080}
+      width={1080}
+    />
   ) : (
     <video
       ref={videoRef}
@@ -71,6 +86,7 @@ export const PausableMovie = ({ interactive = true, src }: Props) => {
         className={classNames("group relative block h-full w-full", {
           "pointer-events-none": !interactive,
         })}
+        ref={containerRef}
         onClick={interactive ? handleClick : undefined}
         tabIndex={interactive ? undefined : -1}
         type="button"
