@@ -4,6 +4,8 @@ import path from "node:path";
 import history from "connect-history-api-fallback";
 import type { Request, Response } from "express";
 import { Router } from "express";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import serveStatic from "serve-static";
 
 import { Post } from "@web-speed-hackathon-2026/server/src/models";
@@ -12,6 +14,7 @@ import {
   PUBLIC_PATH,
   UPLOAD_PATH,
 } from "@web-speed-hackathon-2026/server/src/paths";
+import { TermsStaticApp } from "@web-speed-hackathon-2026/server/src/utils/TermsStaticApp";
 
 export const staticRouter = Router();
 
@@ -37,7 +40,9 @@ try {
 
 let termsHtml = "";
 try {
-  termsHtml = fs.readFileSync(path.join(CLIENT_DIST_PATH, "terms.html"), "utf8");
+  const termsTemplate = fs.readFileSync(path.join(CLIENT_DIST_PATH, "terms.html"), "utf8");
+  const termsAppHtml = renderToString(createElement(TermsStaticApp));
+  termsHtml = termsTemplate.replace('<div id="app"></div>', `<div id="app">${termsAppHtml}</div>`);
 } catch {
   // Will be populated after build
 }

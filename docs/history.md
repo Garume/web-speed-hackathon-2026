@@ -511,3 +511,19 @@
   - targeted Playwright checks passed:
     - `src/search.test.ts` `17/17`
     - `src/posting.test.ts` `2/2`
+
+## 2026-03-21 19:45 JST
+
+### success: prerender terms body into terms.html and hydrate on client
+
+- Task: carry the remaining `/terms` optimization batch to `main` by rendering the terms body on the server into the dedicated `terms.html`, then hydrating it on the client.
+- Key files: `application/server/src/routes/static.ts`, `application/server/src/utils/TermsStaticApp.tsx`, `application/server/package.json`, `application/client/src/terms.tsx`, `application/e2e/src/terms.test.ts`, `application/pnpm-lock.yaml`
+- Verification:
+  - `pnpm install`
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `pnpm test src/terms.test.ts`
+- Result:
+  - `/terms` now serves prerendered body markup instead of an empty app root
+  - the dedicated client entry hydrates existing terms markup instead of always doing a fresh client render
+  - the terms screenshot check no longer waits on `document.fonts.check(...)`, which was brittle across environments and not needed because the screenshot itself remains the contract
