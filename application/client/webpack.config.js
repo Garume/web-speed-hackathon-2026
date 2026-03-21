@@ -33,6 +33,7 @@ const config = {
       path.resolve(SRC_PATH, "./buildinfo.ts"),
       path.resolve(SRC_PATH, "./index.tsx"),
     ],
+    terms: path.resolve(SRC_PATH, "./terms.tsx"),
   },
   mode: "production",
   module: {
@@ -74,9 +75,17 @@ const config = {
       filename: "styles/[name].[contenthash].css",
     }),
     new HtmlWebpackPlugin({
+      chunks: ["main"],
       inject: "head",
       scriptLoading: "defer",
       template: path.resolve(SRC_PATH, "./index.html"),
+    }),
+    new HtmlWebpackPlugin({
+      chunks: ["terms"],
+      filename: "terms.html",
+      inject: "head",
+      scriptLoading: "defer",
+      template: path.resolve(SRC_PATH, "./terms.html"),
     }),
     new HTMLInlineCSSWebpackPlugin(),
   ],

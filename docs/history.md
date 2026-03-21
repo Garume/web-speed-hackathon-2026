@@ -393,3 +393,46 @@
   - `worker=4` verification remained unstable because the local server can still die under parallel load, but `worker=1` full Playwright e2e/VRT passed (`52/52`)
   - local targeted score for `ホームを開く` improved to `78.75 / 100.00` with `TBT 24.90 / 30.00`
   - local targeted score for `DM詳細ページを開く` improved to `95.85 / 100.00` with `TBT 30.00 / 30.00`
+
+## 2026-03-21 13:45 JST
+
+### success: raise terms TBT with dedicated static route and standalone terms entry
+
+- Task: implement the common top-score `/terms` pattern without touching the rest of the scored routes more than necessary.
+- Key files: `application/client/src/terms.tsx`, `application/client/src/terms.html`, `application/client/src/components/term/TermsNavigation.tsx`, `application/client/src/components/term/TermsStandaloneShell.tsx`, `application/client/src/containers/TermsStandaloneContainer.tsx`, `application/client/webpack.config.js`, `application/server/src/routes/static.ts`, `application/server/src/utils/TermsStaticApp.tsx`, `application/server/src/paths.ts`, `application/server/package.json`
+- Verification:
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `CHROME_PATH='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' node .\\scripts\\score-local.mjs --skipBuild --keepServer --targetName 利用規約`
+- Result:
+  - `/terms` direct open no longer goes through the main SPA bootstrap path
+  - added a dedicated `terms` entry and a server-rendered static `/terms` HTML response
+  - best observed local targeted score for `利用規約ページを開く` improved to `79.85 / 100.00`
+  - best observed local `TBT` improved to `23.70 / 30.00`
+  - this did not reach the target `30.00 / 30.00`
+
+### failure: inline terms nav icons to remove font-awesome sprite fetch
+
+- Task: remove the large `/sprites/font-awesome/solid.svg` dependency from the static `/terms` page by inlining only the four needed icons.
+- Key files: `application/server/src/utils/TermsStaticApp.tsx`
+- Verification:
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `CHROME_PATH='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' node .\\scripts\\score-local.mjs --skipBuild --targetName 利用規約`
+- Result:
+  - the attempt made local scoring unstable and produced `Protocol error (Target.attachToTarget): Target closed`
+  - reverted the icon-inline attempt and kept the prior `TBT 23.70 / 30.00` state instead
+
+### failure: targeted terms VRT still diverges from baseline after static terms route
+
+- Task: re-verify the pushed `/terms` optimization batch against the current Playwright screenshot baseline before promoting it.
+- Key files: `application/server/src/routes/static.ts`, `application/server/src/utils/TermsStaticApp.tsx`, `application/client/src/index.css`, `application/e2e/src/terms.test.ts`
+- Verification:
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `PORT=3100 pnpm start`
+  - `E2E_BASE_URL=http://localhost:3100 pnpm test src/terms.test.ts`
+- Result:
+  - build and server typecheck passed
+  - targeted Playwright for `src/terms.test.ts` failed on screenshot comparison
+  - received image height was `4807px` vs expected `4695px`
+  - visual diff remained `329503` pixels (`ratio 0.04`)

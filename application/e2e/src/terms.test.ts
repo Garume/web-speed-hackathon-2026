@@ -16,6 +16,12 @@ test.describe("利用規約", () => {
     // VRT: 利用規約
     await scrollEntire(page);
     await waitForVisibleMedia(page);
+    await expect
+      .poll(
+        () => page.evaluate(() => document.fonts.check('700 32px "Rei no Are Mincho"')),
+        { timeout: 30_000 },
+      )
+      .toBe(true);
     await waitForPageToLoad(page);
     await expect(page).toHaveScreenshot("terms-利用規約.png", {
       fullPage: true,
