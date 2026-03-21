@@ -2,11 +2,6 @@ import { lazy, Suspense, useEffect, useId, useState } from "react";
 
 import { TermPage } from "@web-speed-hackathon-2026/client/src/components/term/TermPage";
 import { TermsStandaloneShell } from "@web-speed-hackathon-2026/client/src/components/term/TermsStandaloneShell";
-import { useDocumentTitle } from "@web-speed-hackathon-2026/client/src/hooks/use_document_title";
-import {
-  addDialogOpenRequestListener,
-  openDialog,
-} from "@web-speed-hackathon-2026/client/src/utils/dialog";
 
 const AuthModalContainer = lazy(() =>
   import("@web-speed-hackathon-2026/client/src/containers/AuthModalContainer").then((module) => ({
@@ -15,30 +10,23 @@ const AuthModalContainer = lazy(() =>
 );
 
 export const TermsStandaloneContainer = () => {
-  useDocumentTitle("利用規約 - CaX");
-
   const authModalId = useId();
   const [isAuthModalMounted, setIsAuthModalMounted] = useState(false);
-  const [pendingDialogId, setPendingDialogId] = useState<string | null>(null);
+  const [shouldOpenDialog, setShouldOpenDialog] = useState(false);
 
   useEffect(() => {
-    return addDialogOpenRequestListener((dialogId) => {
-      if (dialogId === authModalId) {
-        setIsAuthModalMounted(true);
-        setPendingDialogId(dialogId);
-      }
-    });
-  }, [authModalId]);
-
-  useEffect(() => {
-    if (pendingDialogId == null) {
+    if (!shouldOpenDialog) {
       return;
     }
 
     let requestId = 0;
     const tryOpen = () => {
-      if (openDialog(pendingDialogId)) {
-        setPendingDialogId((currentId) => (currentId === pendingDialogId ? null : currentId));
+      const dialog = document.getElementById(authModalId);
+      if (dialog instanceof HTMLDialogElement) {
+        if (!dialog.open) {
+          dialog.showModal();
+        }
+        setShouldOpenDialog(false);
         return;
       }
 
@@ -51,16 +39,23 @@ export const TermsStandaloneContainer = () => {
         window.cancelAnimationFrame(requestId);
       }
     };
-  }, [pendingDialogId]);
+  }, [authModalId, shouldOpenDialog]);
 
   return (
     <>
-      <TermsStandaloneShell authModalId={authModalId}>
+      <TermsStandaloneShell
+        onOpenAuthModal={() => {
+          setIsAuthModalMounted(true);
+          setShouldOpenDialog(true);
+        }}
+      >
         <TermPage />
       </TermsStandaloneShell>
 
       <Suspense fallback={null}>
-        {isAuthModalMounted ? <AuthModalContainer id={authModalId} onUpdateActiveUser={() => {}} /> : null}
+        {isAuthModalMounted ? (
+          <AuthModalContainer id={authModalId} onUpdateActiveUser={() => {}} />
+        ) : null}
       </Suspense>
     </>
   );

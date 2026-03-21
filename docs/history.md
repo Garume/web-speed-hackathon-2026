@@ -453,3 +453,22 @@
   - sound waveforms fetch and render real waveform bars again instead of the synthetic placeholder state
   - `/terms` now serves the dedicated built `terms.html` entry instead of the hand-authored static HTML shell, which restored the baseline screenshot match
   - targeted Playwright for `home` and `terms` passed (`9/9`)
+
+## 2026-03-21 16:55 JST
+
+### success: raise terms TBT by removing router and dialog event bus from the standalone terms entry
+
+- Task: reduce `/terms` main-thread work without changing the regulation-sensitive appearance.
+- Key files: `application/client/src/terms.tsx`, `application/client/src/components/term/TermsNavigation.tsx`, `application/client/src/components/term/TermsStandaloneShell.tsx`, `application/client/src/containers/TermsStandaloneContainer.tsx`
+- Verification:
+  - `pnpm build`
+  - `PORT=3100 pnpm start`
+  - `E2E_BASE_URL=http://localhost:3100 pnpm test src/terms.test.ts`
+  - `CHROME_PATH='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' node .\\scripts\\score-local.mjs --skipBuild --targetName 利用規約`
+- Result:
+  - removed `BrowserRouter` from the dedicated `terms` entry
+  - replaced `NavigationItem` / `react-router` usage in the terms navigation with plain anchors and a local sign-in button handler
+  - removed the global dialog-open event listener from the terms page and switched to local-on-click modal mounting/opening
+  - targeted Playwright for `terms` passed (`2/2`)
+  - local targeted score for `利用規約ページを開く` improved to `83.55 / 100.00`
+  - local targeted `TBT` improved to `26.40 / 30.00`
