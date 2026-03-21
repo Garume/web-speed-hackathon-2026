@@ -4,6 +4,8 @@ import httpErrors from "http-errors";
 import { QaSuggestion } from "@web-speed-hackathon-2026/server/src/models";
 
 export const crokRouter = Router();
+const SSE_CHUNK_SIZE = 140;
+const SSE_CHUNK_INTERVAL_MS = 32;
 const response = `結論から言うね。TypeScript の template literal type は、文字列リテラル型を組み合わせて新しい型を作る仕組みです。
 
 \`type EventName<T extends string> = \`on\${Capitalize<T>}\`\` のように書けるので、文字列ベースの API を型安全に表現できます。
@@ -30,29 +32,70 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function splitResponseIntoChunks(content: string, maxLength = SSE_CHUNK_SIZE): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < content.length) {
+    let end = Math.min(start + maxLength, content.length);
+
+    if (end < content.length) {
+      const paragraphBreak = content.lastIndexOf("\n\n", end);
+      const lineBreak = content.lastIndexOf("\n", end);
+      const spaceBreak = content.lastIndexOf(" ", end);
+      const candidate = Math.max(paragraphBreak >= 0 ? paragraphBreak + 2 : -1, lineBreak >= 0 ? lineBreak + 1 : -1, spaceBreak >= 0 ? spaceBreak + 1 : -1);
+
+      if (candidate > start + Math.floor(maxLength / 2)) {
+        end = candidate;
+      }
+    }
+
+    chunks.push(content.slice(start, end));
+    start = end;
+  }
+
+  return chunks;
+}
+
 crokRouter.get("/crok", async (req, res) => {
   if (req.session.userId === undefined) {
     throw new httpErrors.Unauthorized();
   }
 
   res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
+  const flushableResponse = res as typeof res & { flush?: () => void };
+  const responseChunks = splitResponseIntoChunks(response);
   let messageId = 0;
+  let isClosed = false;
 
-  await sleep(150);
+  req.on("close", () => {
+    isClosed = true;
+  });
 
-  if (!res.closed) {
-    const data = JSON.stringify({ text: response, done: false });
+  for (const chunk of responseChunks) {
+    if (isClosed || res.closed) {
+      res.end();
+      return;
+    }
+
+    const data = JSON.stringify({ text: chunk, done: false });
     res.write(`event: message\nid: ${messageId++}\ndata: ${data}\n\n`);
+    flushableResponse.flush?.();
+
+    if (chunk !== responseChunks[responseChunks.length - 1]) {
+      await sleep(SSE_CHUNK_INTERVAL_MS);
+    }
   }
 
-  if (!res.closed) {
-    await sleep(40);
+  if (!isClosed && !res.closed) {
     const data = JSON.stringify({ text: "", done: true });
     res.write(`event: message\nid: ${messageId}\ndata: ${data}\n\n`);
+    flushableResponse.flush?.();
   }
 
   res.end();

@@ -472,3 +472,21 @@
   - targeted Playwright for `terms` passed (`2/2`)
   - local targeted score for `利用規約ページを開く` improved to `83.55 / 100.00`
   - local targeted `TBT` improved to `26.40 / 30.00`
+
+## 2026-03-21 18:42 JST
+
+### success: make crok SSE actually stream multiple chunks while keeping the current UI contract
+
+- Task: bring `/api/v1/crok` closer to regulation-safe SSE behavior by replacing the near-one-shot response with real multi-chunk streaming, while preserving the current Crok page appearance and tests.
+- Key files: `application/server/src/routes/api/crok.ts`, `application/client/src/components/crok/ChatMessage.tsx`, `application/client/src/components/crok/CrokPage.tsx`
+- Verification:
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `E2E_BASE_URL=http://localhost:3100 E2E_WORKERS=1 pnpm test src/crok-chat.test.ts`
+  - authenticated Node fetch against `/api/v1/crok?prompt=...` to count SSE events
+- Result:
+  - `/api/v1/crok` now sends the fixed response over multiple SSE `data:` events instead of sending the whole body almost at once
+  - verified a real stream of `4` content chunks plus `1` final `done` event, with chunk sizes `133 / 110 / 141 / 75`
+  - streaming now starts immediately and uses small per-chunk delays instead of the previous larger artificial wait
+  - the client still concatenates chunks progressively, keeps the send button disabled while streaming, preserves the typing indicator, and only runs markdown rendering after the stream completes
+  - targeted Playwright for `crok-chat` passed (`2/2`)
