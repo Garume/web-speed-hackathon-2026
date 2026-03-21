@@ -18,6 +18,7 @@ export const UserProfileContainer = () => {
   const { data: posts, fetchMore } = useInfiniteFetch<Models.Post>(
     `/api/v1/users/${username}/posts`,
     fetchJSON,
+    30,
   );
 
   useDocumentTitle(isLoadingUser ? "読込中 - CaX" : user ? `${user.name} さんのタイムライン - CaX` : "CaX");

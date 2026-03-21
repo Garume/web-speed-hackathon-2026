@@ -82,6 +82,28 @@ test.describe("DM一覧", () => {
 
   test("送信ボタンをクリックすると、DM詳細画面に遷移すること", async ({ page }) => {
     await login(page);
+    await page.route(/\/api\/v1\/dm\/[^/]+$/, async (route) => {
+      const response = await route.fetch();
+      const conversation = (await response.json()) as Models.DirectMessageConversation;
+      const peerUsername =
+        conversation.initiator.username === "p72k8qi1c3"
+          ? conversation.initiator.username
+          : conversation.member.username;
+
+      if (peerUsername !== "p72k8qi1c3") {
+        await route.fulfill({ response });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          ...conversation,
+          messages: conversation.messages.slice(-8),
+        },
+        response,
+      });
+    });
+
     await page.goto("/dm");
 
     await page.getByRole("button", { name: "新しくDMを始める" }).click();

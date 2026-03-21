@@ -19,6 +19,7 @@ declare global {
 export function useInfiniteFetch<T>(
   apiPath: string,
   fetcher: (apiPath: string) => Promise<T[]>,
+  pageSize = LIMIT,
 ): ReturnValues<T> {
   // Check for server-inlined initial data
   const initialData = useRef<T[] | null>(null);
@@ -65,7 +66,7 @@ export function useInfiniteFetch<T>(
 
     const separator = apiPath.includes("?") ? "&" : "?";
 
-    void fetcher(`${apiPath}${separator}limit=${LIMIT}&offset=${offset}`).then(
+      void fetcher(`${apiPath}${separator}limit=${pageSize}&offset=${offset}`).then(
       (pageData) => {
         setResult((cur) => ({
           ...cur,
@@ -73,7 +74,7 @@ export function useInfiniteFetch<T>(
           isLoading: false,
         }));
         internalRef.current = {
-          hasMore: pageData.length === LIMIT,
+          hasMore: pageData.length === pageSize,
           isLoading: false,
           offset: offset + pageData.length,
         };
@@ -91,7 +92,7 @@ export function useInfiniteFetch<T>(
         };
       },
     );
-  }, [apiPath, fetcher]);
+  }, [apiPath, fetcher, pageSize]);
 
   useEffect(() => {
     if (apiPath === "") {

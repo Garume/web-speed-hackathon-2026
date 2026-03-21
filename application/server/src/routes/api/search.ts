@@ -1,43 +1,106 @@
 import { Router } from "express";
-import { FindOptions, Includeable, Op, Order, WhereOptions } from "sequelize";
+import { QueryTypes } from "sequelize";
 
-import { Post, User } from "@web-speed-hackathon-2026/server/src/models";
+import { Post } from "@web-speed-hackathon-2026/server/src/models";
 import { parseSearchQuery } from "@web-speed-hackathon-2026/server/src/utils/parse_search_query.js";
 import { sendCachedJson, trySendCachedJson } from "@web-speed-hackathon-2026/server/src/utils/response_cache";
 
 export const searchRouter = Router();
 
-function buildPostInclude(userWhere?: WhereOptions): Includeable[] {
-  return [
+type PostSummary = {
+  createdAt: Date;
+  id: string;
+};
+
+async function findPostSummariesByText(
+  limit: number | undefined,
+  searchTerm: string | null,
+  sinceDate?: Date,
+  untilDate?: Date,
+): Promise<PostSummary[]> {
+  if (searchTerm == null) {
+    return [];
+  }
+
+  const replacements: Record<string, Date | number | string> = {
+    limit: limit ?? -1,
+    searchTerm,
+  };
+  const conditions = ["text LIKE :searchTerm"];
+
+  if (sinceDate != null) {
+    replacements["sinceDate"] = sinceDate;
+    conditions.push("createdAt >= :sinceDate");
+  }
+  if (untilDate != null) {
+    replacements["untilDate"] = untilDate;
+    conditions.push("createdAt <= :untilDate");
+  }
+
+  const rows = await Post.sequelize!.query<{ createdAt: string; id: string }>(
+    `
+      SELECT id, createdAt
+      FROM Posts
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY createdAt DESC, id DESC
+      LIMIT :limit
+    `,
     {
-      model: User.unscoped(),
-      as: "user",
-      attributes: ["id", "username", "name", "description", "createdAt"],
-      include: [{ association: "profileImage", attributes: ["id", "alt"] }],
-      required: true,
-      ...(userWhere == null ? {} : { where: userWhere }),
+      replacements,
+      type: QueryTypes.SELECT,
     },
-    {
-      association: "images",
-      through: { attributes: [] },
-    },
-    { association: "movie" },
-    { association: "sound" },
-  ];
+  );
+
+  return rows.map((post) => ({
+    createdAt: new Date(post.createdAt),
+    id: post.id,
+  }));
 }
 
-function buildPostQueryBase(): Pick<FindOptions, "attributes" | "include" | "order" | "subQuery"> {
-  return {
-    attributes: {
-      exclude: ["userId", "movieId", "soundId"],
-    },
-    include: buildPostInclude(),
-    order: [
-      ["id", "DESC"],
-      ["images", "createdAt", "ASC"],
-    ] as Order,
-    subQuery: false,
+async function findPostSummariesByUser(
+  limit: number | undefined,
+  searchTerm: string | null,
+  sinceDate?: Date,
+  untilDate?: Date,
+): Promise<PostSummary[]> {
+  if (searchTerm == null) {
+    return [];
+  }
+
+  const replacements: Record<string, Date | number | string> = {
+    limit: limit ?? -1,
+    searchTerm,
   };
+  const conditions = ["(Users.username LIKE :searchTerm OR Users.name LIKE :searchTerm)"];
+
+  if (sinceDate != null) {
+    replacements["sinceDate"] = sinceDate;
+    conditions.push("Posts.createdAt >= :sinceDate");
+  }
+  if (untilDate != null) {
+    replacements["untilDate"] = untilDate;
+    conditions.push("Posts.createdAt <= :untilDate");
+  }
+
+  const rows = await Post.sequelize!.query<{ createdAt: string; id: string }>(
+    `
+      SELECT Posts.id AS id, Posts.createdAt AS createdAt
+      FROM Posts
+      INNER JOIN Users ON Posts.userId = Users.id
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY Posts.createdAt DESC, Posts.id DESC
+      LIMIT :limit
+    `,
+    {
+      replacements,
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  return rows.map((post) => ({
+    createdAt: new Date(post.createdAt),
+    id: post.id,
+  }));
 }
 
 searchRouter.get("/search", async (req, res) => {
@@ -53,7 +116,6 @@ searchRouter.get("/search", async (req, res) => {
 
   const { keywords, sinceDate, untilDate } = parseSearchQuery(query);
 
-  // キーワードも日付フィルターもない場合は空配列を返す
   if (!keywords && !sinceDate && !untilDate) {
     return sendCachedJson(res, req.originalUrl, []);
   }
@@ -64,55 +126,41 @@ searchRouter.get("/search", async (req, res) => {
   const pageWindow = (limit ?? 0) + (offset ?? 0);
   const sourceLimit = limit != null ? Math.max(pageWindow * 5, limit) : undefined;
 
-  // 日付条件を構築
-  const dateConditions: Record<symbol, Date>[] = [];
-  if (sinceDate) {
-    dateConditions.push({ [Op.gte]: sinceDate });
-  }
-  if (untilDate) {
-    dateConditions.push({ [Op.lte]: untilDate });
-  }
-  const dateWhere =
-    dateConditions.length > 0 ? { createdAt: Object.assign({}, ...dateConditions) } : {};
+  const [postsByText, postsByUser] = await Promise.all([
+    findPostSummariesByText(sourceLimit, searchTerm, sinceDate ?? undefined, untilDate ?? undefined),
+    findPostSummariesByUser(sourceLimit, searchTerm, sinceDate ?? undefined, untilDate ?? undefined),
+  ]);
 
-  // テキスト検索条件
-  const textWhere = searchTerm ? { text: { [Op.like]: searchTerm } } : {};
-
-  const postsByText = await Post.unscoped().findAll({
-    ...buildPostQueryBase(),
-    limit: sourceLimit,
-    where: {
-      ...textWhere,
-      ...dateWhere,
-    },
-  });
-
-  // ユーザー名/名前での検索（キーワードがある場合のみ）
-  let postsByUser: typeof postsByText = [];
-  if (searchTerm) {
-    postsByUser = await Post.unscoped().findAll({
-      ...buildPostQueryBase(),
-      include: buildPostInclude({
-        [Op.or]: [{ username: { [Op.like]: searchTerm } }, { name: { [Op.like]: searchTerm } }],
-      }),
-      limit: sourceLimit,
-      where: dateWhere,
-    });
-  }
-
-  const postIdSet = new Set<string>();
-  const mergedPosts: typeof postsByText = [];
-
+  const mergedSummaries = new Map<string, PostSummary>();
   for (const post of [...postsByText, ...postsByUser]) {
-    if (!postIdSet.has(post.id)) {
-      postIdSet.add(post.id);
-      mergedPosts.push(post);
+    const current = mergedSummaries.get(post.id);
+    if (current == null || current.createdAt.getTime() < post.createdAt.getTime()) {
+      mergedSummaries.set(post.id, post);
     }
   }
 
-  mergedPosts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const sortedIds = [...mergedSummaries.values()]
+    .sort(
+      (left, right) =>
+        right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id),
+    )
+    .map((post) => post.id);
 
-  const result = mergedPosts.slice(offset || 0, (offset || 0) + (limit || mergedPosts.length));
+  const pageIds = sortedIds.slice(offset || 0, (offset || 0) + (limit || sortedIds.length));
+  if (pageIds.length === 0) {
+    return sendCachedJson(res, req.originalUrl, []);
+  }
+
+  const posts = await Post.findAll({
+    where: {
+      id: pageIds,
+    },
+  });
+
+  const postMap = new Map(posts.map((post) => [post.id, post]));
+  const result = pageIds
+    .map((postId) => postMap.get(postId))
+    .filter((post): post is NonNullable<typeof post> => post != null);
 
   return sendCachedJson(res, req.originalUrl, result);
 });

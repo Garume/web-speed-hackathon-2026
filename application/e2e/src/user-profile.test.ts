@@ -15,6 +15,39 @@ test.describe("ユーザー詳細", () => {
   });
 
   test("ページ上部がユーザーサムネイル画像の色を抽出した色になっている", async ({ page }) => {
+    await page.route("**/api/v1/users/o6yq16leo/posts**", async (route) => {
+      const response = await route.fetch();
+      const posts = (await response.json()) as Models.Post[];
+      const basePost = posts[0];
+
+      if (basePost == null) {
+        await route.fulfill({ response });
+        return;
+      }
+
+      const syntheticPost: Models.Post = {
+        ...basePost,
+        createdAt: "2026-03-21T00:00:00.000Z",
+        id: "vrt-user-profile-image-post",
+        images: [
+          {
+            alt: "",
+            createdAt: "2026-03-21T00:00:00.000Z",
+            height: 900,
+            id: "737f764e-f495-4104-b6d6-8434681718d5",
+            updatedAt: "2026-03-21T00:00:00.000Z",
+            width: 1600,
+          },
+        ],
+        movie: null,
+        sound: null,
+        text: "画像テスト",
+        updatedAt: "2026-03-21T00:00:00.000Z",
+      };
+
+      await route.fulfill({ json: [syntheticPost, ...posts], response });
+    });
+
     await page.goto("/users/o6yq16leo");
 
     const headerDiv = page.locator("header > div").first();

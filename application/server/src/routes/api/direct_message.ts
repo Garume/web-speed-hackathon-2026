@@ -117,9 +117,17 @@ directMessageRouter.post("/dm", async (req, res) => {
     throw new httpErrors.NotFound();
   }
 
-  const conversation = await DirectMessageConversation.unscoped().create({
-    initiatorId: req.session.userId,
-    memberId: peer.id,
+  const [conversation] = await DirectMessageConversation.unscoped().findOrCreate({
+    where: {
+      [Op.or]: [
+        { initiatorId: req.session.userId, memberId: peer.id },
+        { initiatorId: peer.id, memberId: req.session.userId },
+      ],
+    },
+    defaults: {
+      initiatorId: req.session.userId,
+      memberId: peer.id,
+    },
   });
 
   return res.status(200).type("application/json").send({ id: conversation.id });
@@ -182,7 +190,6 @@ directMessageRouter.get("/dm/:conversationId", async (req, res) => {
         association: "messages",
         attributes: ["id", "body", "isRead", "createdAt", "updatedAt"],
         include: [{ association: "sender", attributes: ["id"] }],
-        limit: 30,
         order: [["createdAt", "ASC"]],
         required: false,
         separate: true,

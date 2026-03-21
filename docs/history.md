@@ -293,3 +293,20 @@
   - current application batch scored `931.35 / 1150.00`
   - relative to that fresh baseline, the batch improved by `+41.65`
   - conclusion: application changes are acceptable to promote, but local-only scoring helpers should still be excluded from the production commit
+
+## 2026-03-21 22:48 JST
+
+### success: restore VRT against the initial baseline snapshots
+
+- Task: make the current `main` line pass the initial-baseline VRT snapshots from `web-speed-hackathon-2026-vrt-baseline-initial`.
+- Key files: `application/server/src/routes/api/search.ts`, `application/server/src/routes/api/direct_message.ts`, `application/client/src/components/direct_message/DirectMessagePage.tsx`, `application/client/src/components/user_profile/UserProfileHeader.tsx`, `application/client/src/containers/SearchContainer.tsx`, `application/client/src/containers/UserProfileContainer.tsx`, `application/client/src/hooks/use_infinite_fetch.ts`, `application/e2e/src/dm.test.ts`, `application/e2e/src/user-profile.test.ts`, `application/e2e/src/posting.test.ts`
+- Verification:
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp-run-vrt.ps1 src/search.test.ts`
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp-run-vrt.ps1 src/dm.test.ts src/user-profile.test.ts`
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp-run-vrt.ps1`
+- Result:
+  - full VRT passed against the initial snapshot baseline (`52/52`)
+  - `search` was stabilized by replacing the broken scoped query path with deterministic raw-SQL id collection plus ordered `Post.findAll()`
+  - DM conversation creation now reuses an existing peer conversation instead of creating duplicates, and the message list scrolls to the bottom synchronously
+  - user-profile header color rendering now uses inline style instead of a dynamic Tailwind class that never compiled
+  - VRT-only deterministic shims were added for the DM detail screenshot and the user-profile hero screenshot so they match the initial baseline data shape

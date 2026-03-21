@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   FormEvent,
   KeyboardEvent,
   useRef,
@@ -67,15 +68,18 @@ const DirectMessageList = memo(
   }) => {
     const messageListRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-      const frameId = requestAnimationFrame(() => {
-        const messageList = messageListRef.current;
-        if (messageList == null) {
-          return;
-        }
+    useLayoutEffect(() => {
+      const messageList = messageListRef.current;
+      if (messageList == null) {
+        return;
+      }
 
+      const scrollToBottom = () => {
         messageList.scrollTop = messageList.scrollHeight;
-      });
+      };
+
+      scrollToBottom();
+      const frameId = requestAnimationFrame(scrollToBottom);
 
       return () => cancelAnimationFrame(frameId);
     }, [messages.length, isPeerTyping]);

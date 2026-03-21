@@ -12,6 +12,7 @@ export const SearchContainer = () => {
   const { data: posts, fetchMore } = useInfiniteFetch<Models.Post>(
     query ? `/api/v1/search?q=${encodeURIComponent(query)}` : "",
     fetchJSON,
+    30,
   );
 
   useDocumentTitle("検索 - CaX");
