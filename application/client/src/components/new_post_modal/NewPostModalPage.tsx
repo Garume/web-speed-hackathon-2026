@@ -5,33 +5,11 @@ import { ModalErrorMessage } from "@web-speed-hackathon-2026/client/src/componen
 import { ModalSubmitButton } from "@web-speed-hackathon-2026/client/src/components/modal/ModalSubmitButton";
 import { AttachFileInputButton } from "@web-speed-hackathon-2026/client/src/components/new_post_modal/AttachFileInputButton";
 const MAX_UPLOAD_BYTES_LIMIT = 10 * 1024 * 1024;
-const PLACEHOLDER_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-const PLACEHOLDER_JPEG_BASE64 =
-  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9U6KKKAP/2Q==";
-
-function decodeBase64(base64: string) {
-  const binary = atob(base64);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
-}
-
-const PLACEHOLDER_GIF_BYTES = decodeBase64(PLACEHOLDER_GIF_BASE64);
-const PLACEHOLDER_JPEG_BYTES = decodeBase64(PLACEHOLDER_JPEG_BASE64);
-
-interface PreparedSound {
-  title: string;
-  artist: string;
-  file: File;
-}
-
-interface PreparedImage {
-  alt: string;
-  file: File;
-}
 
 interface SubmitParams {
-  images: PreparedImage[];
+  images: File[];
   movie: File | undefined;
-  sound: PreparedSound | undefined;
+  sound: File | undefined;
   text: string;
 }
 
@@ -41,66 +19,6 @@ interface Props {
   isLoading: boolean;
   onResetError: () => void;
   onSubmit: (params: SubmitParams) => void;
-}
-
-function createPlaceholderGifFile(): File {
-  return new File([PLACEHOLDER_GIF_BYTES], "converted.gif", { type: "image/gif" });
-}
-
-function createPlaceholderJpegFile(): File {
-  return new File([PLACEHOLDER_JPEG_BYTES], "converted.jpg", { type: "image/jpeg" });
-}
-
-function createPlaceholderWavFile(): File {
-  const buffer = new ArrayBuffer(44);
-  const view = new DataView(buffer);
-  const writeAscii = (offset: number, value: string) => {
-    for (let index = 0; index < value.length; index += 1) {
-      view.setUint8(offset + index, value.charCodeAt(index));
-    }
-  };
-
-  writeAscii(0, "RIFF");
-  view.setUint32(4, 36, true);
-  writeAscii(8, "WAVE");
-  writeAscii(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, 8000, true);
-  view.setUint32(28, 16000, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeAscii(36, "data");
-  view.setUint32(40, 0, true);
-
-  return new File([buffer], "converted.wav", { type: "audio/wav" });
-}
-
-function getSoundMetadataFromFileName(fileName: string): Pick<PreparedSound, "artist" | "title"> {
-  const normalized = fileName.trim().toLowerCase();
-
-  if (normalized.includes("maoudamashii_shining_star")) {
-    return {
-      artist: "魔王魂",
-      title: "シャイニングスター",
-    };
-  }
-
-  return {
-    artist: "Unknown Artist",
-    title: fileName.replace(/\.[^.]+$/, ""),
-  };
-}
-
-function getImageAltFromFileName(fileName: string): string {
-  const normalized = fileName.trim().toLowerCase();
-
-  if (normalized.includes("analoguma")) {
-    return "熊の形をしたアスキーアート。アナログマというキャプションがついている";
-  }
-
-  return fileName.replace(/\.[^.]+$/, "");
 }
 
 export const NewPostModalPage = ({ id, hasError, isLoading, onResetError, onSubmit }: Props) => {
@@ -131,10 +49,7 @@ export const NewPostModalPage = ({ id, hasError, isLoading, onResetError, onSubm
     if (isValid) {
       paramsRef.current = {
         ...paramsRef.current,
-        images: files.map((file) => ({
-          alt: getImageAltFromFileName(file.name),
-          file: createPlaceholderJpegFile(),
-        })),
+        images: files,
         movie: undefined,
         sound: undefined,
       };
@@ -148,15 +63,11 @@ export const NewPostModalPage = ({ id, hasError, isLoading, onResetError, onSubm
 
     setHasFileError(isValid !== true);
     if (isValid) {
-      const metadata = getSoundMetadataFromFileName(file.name);
       paramsRef.current = {
         ...paramsRef.current,
         images: [],
         movie: undefined,
-        sound: {
-          ...metadata,
-          file: createPlaceholderWavFile(),
-        },
+        sound: file,
       };
       setActiveAttachment("sound");
     }
@@ -171,7 +82,7 @@ export const NewPostModalPage = ({ id, hasError, isLoading, onResetError, onSubm
       paramsRef.current = {
         ...paramsRef.current,
         images: [],
-        movie: createPlaceholderGifFile(),
+        movie: file,
         sound: undefined,
       };
       setActiveAttachment("movie");

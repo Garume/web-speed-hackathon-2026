@@ -2,6 +2,7 @@ import { Router } from "express";
 import { QueryTypes } from "sequelize";
 
 import { Post } from "@web-speed-hackathon-2026/server/src/models";
+import { analyzeSearchSentiment } from "@web-speed-hackathon-2026/server/src/utils/analyze_search_sentiment";
 import { parseSearchQuery } from "@web-speed-hackathon-2026/server/src/utils/parse_search_query.js";
 import { sendCachedJson, trySendCachedJson } from "@web-speed-hackathon-2026/server/src/utils/response_cache";
 
@@ -102,6 +103,31 @@ async function findPostSummariesByUser(
     id: post.id,
   }));
 }
+
+searchRouter.get("/search/sentiment", async (req, res) => {
+  if (trySendCachedJson(res, req.originalUrl)) {
+    return;
+  }
+
+  const query = req.query["q"];
+  if (typeof query !== "string" || query.trim() === "") {
+    return sendCachedJson(res, req.originalUrl, {
+      label: "neutral",
+      score: 0,
+    });
+  }
+
+  const { keywords } = parseSearchQuery(query);
+  if (!keywords) {
+    return sendCachedJson(res, req.originalUrl, {
+      label: "neutral",
+      score: 0,
+    });
+  }
+
+  const sentiment = await analyzeSearchSentiment(keywords);
+  return sendCachedJson(res, req.originalUrl, sentiment);
+});
 
 searchRouter.get("/search", async (req, res) => {
   if (trySendCachedJson(res, req.originalUrl)) {

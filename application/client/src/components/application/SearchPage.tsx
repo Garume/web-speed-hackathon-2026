@@ -7,6 +7,7 @@ import {
   sanitizeSearchText,
 } from "@web-speed-hackathon-2026/client/src/search/services";
 import { validate } from "@web-speed-hackathon-2026/client/src/search/validation";
+import { fetchJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 
 import { Button } from "../foundation/Button";
 
@@ -14,8 +15,6 @@ interface Props {
   query: string;
   results: Models.Post[];
 }
-
-const NEGATIVE_QUERIES = new Set(["悲しい", "惑い"]);
 
 const SearchInput = ({
   error,
@@ -51,18 +50,48 @@ export const SearchPage = ({ query, results }: Props) => {
   const [searchText, setSearchText] = useState(query);
   const [isTouched, setIsTouched] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [sentimentLabel, setSentimentLabel] =
+    useState<"positive" | "negative" | "neutral" | null>(null);
 
   const parsed = parseSearchQuery(query);
   const searchError = (isTouched || isSubmitted)
     ? validate({ searchText }).searchText
     : undefined;
-  const isNegative = parsed.keywords != null && NEGATIVE_QUERIES.has(parsed.keywords.trim());
+  const isNegative = sentimentLabel === "negative";
 
   useEffect(() => {
     setSearchText(query);
     setIsTouched(false);
     setIsSubmitted(false);
   }, [query]);
+
+  useEffect(() => {
+    const keywords = parsed.keywords?.trim();
+    if (keywords == null || keywords.length === 0) {
+      setSentimentLabel(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSentimentLabel(null);
+    void fetchJSON<{ label: "positive" | "negative" | "neutral" }>(
+      `/api/v1/search/sentiment?q=${encodeURIComponent(keywords)}`,
+    )
+      .then((result) => {
+        if (!cancelled) {
+          setSentimentLabel(result.label);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSentimentLabel(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [parsed.keywords]);
 
   const searchConditionText = useMemo(() => {
     const parts: string[] = [];

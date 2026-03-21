@@ -490,3 +490,24 @@
   - streaming now starts immediately and uses small per-chunk delays instead of the previous larger artificial wait
   - the client still concatenates chunks progressively, keeps the send button disabled while streaming, preserves the typing indicator, and only runs markdown rendering after the stream completes
   - targeted Playwright for `crok-chat` passed (`2/2`)
+
+## 2026-03-21 19:20 JST
+
+### success: restore regulation-safe search sentiment and real media conversion on post submit
+
+- Task: replace the ad-hoc negative-search detection with a real `negaposi-analyzer-ja` path and remove the placeholder `1x1 image / empty wav / filename special-case` upload hacks from post submission.
+- Key files: `application/server/src/utils/analyze_search_sentiment.ts`, `application/server/src/routes/api/search.ts`, `application/client/src/components/application/SearchPage.tsx`, `application/client/src/components/new_post_modal/NewPostModalPage.tsx`, `application/client/src/containers/NewPostModalContainer.tsx`, `application/server/package.json`, `application/server/types/negaposi-analyzer-ja.d.ts`, `application/pnpm-lock.yaml`
+- Verification:
+  - `pnpm build`
+  - `pnpm --filter @web-speed-hackathon-2026/server typecheck`
+  - `pnpm test src/search.test.ts src/posting.test.ts`
+- Result:
+  - search sentiment is now computed server-side with `kuromoji + negaposi-analyzer-ja`, so the page no longer depends on fragile browser-side dictionary loading
+  - `/api/v1/search/sentiment` returns the same negative boundary behavior expected by the official tests (`悲しい`, `惑い`, `没落`, `嫌い`)
+  - post submission now keeps the user-selected files and performs real conversion only at submit time:
+    - images -> actual JPEG conversion
+    - movies -> actual GIF conversion
+    - sounds -> actual MP3 conversion with extracted metadata
+  - targeted Playwright checks passed:
+    - `src/search.test.ts` `17/17`
+    - `src/posting.test.ts` `2/2`

@@ -5,25 +5,18 @@ import { Modal } from "@web-speed-hackathon-2026/client/src/components/modal/Mod
 import { NewPostModalPage } from "@web-speed-hackathon-2026/client/src/components/new_post_modal/NewPostModalPage";
 import { sendFile, sendJSON } from "@web-speed-hackathon-2026/client/src/utils/fetchers";
 
-interface PreparedImage {
-  alt: string;
-  file: File;
-}
-
-interface PreparedSound {
-  artist: string;
-  file: File;
-  title: string;
-}
-
 interface SubmitParams {
-  images: PreparedImage[];
+  images: File[];
   movie: File | undefined;
-  sound: PreparedSound | undefined;
+  sound: File | undefined;
   text: string;
 }
 
-async function uploadSound(sound: PreparedSound): Promise<Models.Sound> {
+async function uploadSound(sound: {
+  artist: string;
+  file: File;
+  title: string;
+}): Promise<Models.Sound> {
   const response = await fetch("/api/v1/sounds", {
     body: sound.file,
     headers: {
@@ -45,14 +38,57 @@ async function sendNewPost({ images, movie, sound, text }: SubmitParams): Promis
   const payload = {
     images: images
       ? await Promise.all(
-          images.map(async ({ alt, file }) => ({
-            ...(await sendFile<{ id: string }>("/api/v1/images", file)),
-            alt,
-          })),
+          images.map(async (file) => {
+            const [{ convertImage }, { MagickFormat }] = await Promise.all([
+              import("@web-speed-hackathon-2026/client/src/utils/convert_image"),
+              import("@imagemagick/magick-wasm"),
+            ]);
+            const converted = await convertImage(file, { extension: MagickFormat.Jpeg });
+            const convertedFile = new File([converted.blob], "converted.jpg", {
+              type: "image/jpeg",
+            });
+
+            return {
+              ...(await sendFile<{ id: string }>("/api/v1/images", convertedFile)),
+              alt: converted.alt,
+            };
+          }),
         )
       : [],
-    movie: movie ? await sendFile("/api/v1/movies", movie) : undefined,
-    sound: sound ? await uploadSound(sound) : undefined,
+    movie: movie
+      ? await sendFile(
+          "/api/v1/movies",
+          new File(
+            [
+              await import("@web-speed-hackathon-2026/client/src/utils/convert_movie").then(
+                ({ convertMovie }) => convertMovie(movie, { extension: "gif" }),
+              ),
+            ],
+            "converted.gif",
+            {
+              type: "image/gif",
+            },
+          ),
+        )
+      : undefined,
+    sound: sound
+      ? await uploadSound({
+          ...(await import(
+            "@web-speed-hackathon-2026/client/src/utils/extract_metadata_from_sound"
+          ).then(({ extractMetadataFromSound }) => extractMetadataFromSound(sound))),
+          file: new File(
+            [
+              await import("@web-speed-hackathon-2026/client/src/utils/convert_sound").then(
+                ({ convertSound }) => convertSound(sound, { extension: "mp3" }),
+              ),
+            ],
+            "converted.mp3",
+            {
+              type: "audio/mpeg",
+            },
+          ),
+        })
+      : undefined,
     text,
   };
 
